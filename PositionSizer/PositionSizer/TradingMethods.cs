@@ -199,16 +199,20 @@ public partial class PositionSizer
                 {
                     if (Model.MaxSlippagePips == 0)
                     {
-                        ExecuteMarketOrder(Model.TradeType, SymbolName,
-                            volume, Model.Label, sl, tp, comment);
+                        if (InputUseAsyncOrders)
+                            ExecuteMarketOrderAsync(Model.TradeType, SymbolName, volume, Model.Label, sl, tp, comment);
+                        else
+                            ExecuteMarketOrder(Model.TradeType, SymbolName, volume, Model.Label, sl, tp, comment);
                     }
                     else
                     {
                         var marketRangePips = Model.MaxSlippagePips;
                         var basePrice = Model.TradeType == TradeType.Buy ? Symbol.Ask : Symbol.Bid;
-                        
-                        ExecuteMarketRangeOrder(Model.TradeType, SymbolName,
-                            volume, marketRangePips, basePrice, Model.Label, sl, tp,comment);
+
+                        if (InputUseAsyncOrders)
+                            ExecuteMarketRangeOrderAsync(Model.TradeType, SymbolName, volume, marketRangePips, basePrice, Model.Label, sl, tp, comment);
+                        else
+                            ExecuteMarketRangeOrder(Model.TradeType, SymbolName, volume, marketRangePips, basePrice, Model.Label, sl, tp,comment);
                     }
                 }
                 break;
@@ -216,46 +220,46 @@ public partial class PositionSizer
                 if (Model.TradeType == TradeType.Buy)
                 {
                     if (Model.EntryPrice >= Symbol.Ask)
-                        PlaceStopOrder(Model.TradeType, SymbolName,
-                            volume, Model.EntryPrice,
-                            Model.Label, sl, tp,
-                            expiry,
-                            comment);
+                    {
+                        if (InputUseAsyncOrders)
+                            PlaceStopOrderAsync(Model.TradeType, SymbolName, volume, Model.EntryPrice, Model.Label, sl, tp, expiry, comment);
+                        else
+                            PlaceStopOrder(Model.TradeType, SymbolName, volume, Model.EntryPrice, Model.Label, sl, tp, expiry, comment);
+                    }
                     else
-                        PlaceLimitOrder(Model.TradeType, SymbolName,
-                            volume, Model.EntryPrice,
-                            Model.Label, sl, tp,
-                            expiry,
-                            comment);
+                    {
+                        if (InputUseAsyncOrders)
+                            PlaceLimitOrderAsync(Model.TradeType, SymbolName, volume, Model.EntryPrice, Model.Label, sl, tp, expiry, comment);
+                        else
+                            PlaceLimitOrder(Model.TradeType, SymbolName, volume, Model.EntryPrice, Model.Label, sl, tp, expiry, comment);
+                    }
                 }
                 else
                 {
                     if (Model.EntryPrice >= Symbol.Bid)
-                        PlaceLimitOrder(Model.TradeType, SymbolName,
-                            volume, Model.EntryPrice,
-                            Model.Label, sl, tp,
-                            expiry,
-                            comment);
+                    {
+                        if (InputUseAsyncOrders)
+                            PlaceLimitOrderAsync(Model.TradeType, SymbolName, volume, Model.EntryPrice, Model.Label, sl, tp, expiry, comment);
+                        else
+                            PlaceLimitOrder(Model.TradeType, SymbolName, volume, Model.EntryPrice, Model.Label, sl, tp, expiry, comment);
+                    }
                     else
-                        PlaceStopOrder(Model.TradeType, SymbolName,
-                            volume, Model.EntryPrice,
-                            Model.Label, sl, tp,
-                            expiry,
-                            comment);
+                    {
+                        if (InputUseAsyncOrders)
+                            PlaceStopOrderAsync(Model.TradeType, SymbolName, volume, Model.EntryPrice, Model.Label, sl, tp, expiry, comment);
+                        else
+                            PlaceStopOrder(Model.TradeType, SymbolName, volume, Model.EntryPrice, Model.Label, sl, tp, expiry, comment);
+                    }
                 }
 
                 break;
             case OrderType.StopLimit:
-                var stopLimitRangePips =
-                    Math.Round(
-                        Math.Abs(Model.StopLimitPrice -
-                                 Model.EntryPrice), 1);
-
-                PlaceStopLimitOrder(Model.TradeType, SymbolName,
-                    volume, Model.EntryPrice,
-                    stopLimitRangePips, Model.Label, sl, tp,
-                    expiry,
-                    comment);
+                var stopLimitRangePips = Math.Round(Math.Abs(Model.StopLimitPrice - Model.EntryPrice), 1);
+                
+                if (InputUseAsyncOrders)
+                    PlaceStopLimitOrderAsync(Model.TradeType, SymbolName, volume, Model.EntryPrice, stopLimitRangePips, Model.Label, sl, tp, expiry, comment);
+                else
+                    PlaceStopLimitOrder(Model.TradeType, SymbolName, volume, Model.EntryPrice, stopLimitRangePips, Model.Label, sl, tp, expiry, comment);
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
@@ -268,16 +272,75 @@ public partial class PositionSizer
         
         if (Model.MaxSlippagePips == 0)
         {
-            result = ExecuteMarketOrder(Model.TradeType, SymbolName,
-                volume,Model.Label, null, null, comment);
+            if (InputUseAsyncOrders)
+            {
+                ExecuteMarketOrderAsync(Model.TradeType, SymbolName, volume, Model.Label, null, null, comment, r =>
+                {
+                    if (r.IsSuccessful)
+                    {
+                        double? slPrice = null;
+
+                        if (sl != 0)
+                        {
+                            slPrice = Model.TradeType == TradeType.Buy
+                                ? r.Position.EntryPrice - sl * Symbol.PipSize
+                                : r.Position.EntryPrice + sl * Symbol.PipSize;
+                        }
+
+                        double? tpPrice = null;
+
+                        if (tp != 0)
+                        {
+                            tpPrice = Model.TradeType == TradeType.Buy
+                                ? r.Position.EntryPrice + tp * Symbol.PipSize
+                                : r.Position.EntryPrice - tp * Symbol.PipSize; 
+                        }
+
+                        ModifyPositionAsync(r.Position, slPrice, tpPrice);
+                    }
+                });
+
+                return;
+            }
+
+            result = ExecuteMarketOrder(Model.TradeType, SymbolName, volume,Model.Label, null, null, comment);
         }
         else
         {
             var marketRangePips = Model.MaxSlippagePips / Symbol.PipSize;
             var basePrice = Model.TradeType == TradeType.Buy ? Symbol.Ask : Symbol.Bid;
-            
-            result = ExecuteMarketRangeOrder(Model.TradeType, SymbolName,
-                volume, marketRangePips, basePrice, Model.Label, null, null, comment);
+
+            if (InputUseAsyncOrders)
+            {
+                ExecuteMarketRangeOrderAsync(Model.TradeType, SymbolName, volume, marketRangePips, basePrice, Model.Label, null, null, comment, r =>
+                {
+                    if (r.IsSuccessful)
+                    {
+                        double? slPrice = null;
+
+                        if (sl != 0)
+                        {
+                            slPrice = Model.TradeType == TradeType.Buy
+                                ? r.Position.EntryPrice - sl * Symbol.PipSize
+                                : r.Position.EntryPrice + sl * Symbol.PipSize;
+                        }
+
+                        double? tpPrice = null;
+
+                        if (tp != 0)
+                        {
+                            tpPrice = Model.TradeType == TradeType.Buy
+                                ? r.Position.EntryPrice + tp * Symbol.PipSize
+                                : r.Position.EntryPrice - tp * Symbol.PipSize; 
+                        }
+
+                        ModifyPositionAsync(r.Position, slPrice, tpPrice);
+                    }
+                });
+                return;
+            }
+
+            result = ExecuteMarketRangeOrder(Model.TradeType, SymbolName, volume, marketRangePips, basePrice, Model.Label, null, null, comment);
         }
 
         if (result.IsSuccessful)

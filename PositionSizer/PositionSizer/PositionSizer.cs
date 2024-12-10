@@ -25,7 +25,7 @@ public partial class PositionSizer : Robot,
     public event EventHandler TimerEvent;
     public event EventHandler StopEvent;
     public IModel Model { get; set; }
-    public const string Version = "v1.05";
+    public const string Version = "v1.06";
     public CustomStyle CustomStyle { get; private set; }
     public BreakEven BreakEven { get; private set; }
     public TrailingStop TrailingStop { get; private set; }

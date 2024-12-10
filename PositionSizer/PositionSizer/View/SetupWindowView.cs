@@ -74,6 +74,7 @@ public interface ISetupWindowResources
     Button MakeButton(string text);
     //KeyMultiplierFeature KeyMultiplierFeature { get; }
     bool InputDarkMode { get; }
+    LocalStorage LocalStorage { get; }
 }
 
 public enum WindowActive
@@ -181,11 +182,13 @@ public sealed class SetupWindowView : Grid,
             VerticalAlignment = VerticalAlignment.Top,
             Text = TitleAndVersion
         };
+        
+        var wasHidden = LocalStorage.GetString("wasHidden");
 
         _hideShow = new Button
         {
             //Text = InputStartPanelMinimized ? "Show" : "Hide",
-            Text = InputStartPanelMinimized ? "🗗" : "\ud83d\uddd5",
+            Text = InputStartPanelMinimized || wasHidden == "Y" ? "🗗" : "\ud83d\uddd5",
             Margin = new Thickness(5),
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
@@ -298,7 +301,7 @@ public sealed class SetupWindowView : Grid,
         
         Chart.AddControl(this);
         
-        if (InputStartPanelMinimized)
+        if (InputStartPanelMinimized || wasHidden == "Y")
             HideShow_Click(null);
     }
 
@@ -546,6 +549,9 @@ public sealed class SetupWindowView : Grid,
 
             _stackPanel.AddChild(_selectorView);
             _stackPanel.RemoveChild(ViewUsed);
+            
+            LocalStorage.SetString("wasHidden", "N", LocalStorageScope.Instance);
+            LocalStorage.Flush(LocalStorageScope.Instance);
 
             ViewUsed = Model.LastKnownState.WindowActive switch
             {
@@ -562,6 +568,9 @@ public sealed class SetupWindowView : Grid,
         else
         {
             _hideShow.Text = "🗗";
+
+            LocalStorage.SetString("wasHidden", "Y", LocalStorageScope.Instance);
+            LocalStorage.Flush(LocalStorageScope.Instance);
             
             _stackPanel.RemoveChild(_selectorView);
             _stackPanel.RemoveChild(ViewUsed);
@@ -677,6 +686,7 @@ public sealed class SetupWindowView : Grid,
     public Button MakeButton(string text) => _resources.MakeButton(text);
     //public KeyMultiplierFeature KeyMultiplierFeature => _resources.KeyMultiplierFeature;
     public bool InputDarkMode => _resources.InputDarkMode;
+    public LocalStorage LocalStorage => _resources.LocalStorage;
 
     private void OnHideShowClickEvent()
     {

@@ -29,7 +29,20 @@ public class ChartLinesView : IChartLinesViewResources
     private double _furtherXCoordinate;
     private Button _tradeButton;
 
-    private int IndexFromXCoordinate => (int)Chart.XToBarIndex(_furtherXCoordinate);
+    private int IndexFromXCoordinate
+    {
+        get
+        {
+            try
+            {
+                return checked((int)Chart.XToBarIndex(_furtherXCoordinate));
+            }
+            catch (OverflowException)
+            {
+                return Chart.Bars.Count - 1;
+            }
+        }
+    }
 
     public ChartText EntryText { get; set; }
     public ChartText EntryAdditionalText { get; set; }

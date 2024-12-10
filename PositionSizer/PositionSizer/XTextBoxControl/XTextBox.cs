@@ -75,7 +75,7 @@ public abstract class XTextBox<T> : CustomControl, IControlValue<T>
 
     protected Color EditingColor { get; }
     protected Color InvalidColor { get; }
-    protected Color DefaultBackgroundColor { get; }
+    protected Color DefaultBackgroundColor { get; private set; }
 
     private Color _backgroundColor;
 
@@ -298,6 +298,8 @@ public abstract class XTextBox<T> : CustomControl, IControlValue<T>
         TextBox.ResetProperty(ControlProperty.BackgroundColor);
         TextBox.ResetProperty(ControlProperty.ForegroundColor);
         TextBox.ResetProperty(ControlProperty.BorderColor);
+        
+        DefaultBackgroundColor = (Color)style.TextBoxStyle.Get(ControlProperty.BackgroundColor);
 
         if (IsReadOnly)
         {

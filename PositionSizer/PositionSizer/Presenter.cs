@@ -124,9 +124,8 @@ public partial class PositionSizer
         //Set Default Values
         Model.UpdateReadOnlyValues();
         SetupWindowView.RiskView.Update(Model);
-
-        if (!Model.HideLines) 
-            SetupWindowView.ChartLinesView.DrawLines(Model);
+        
+        SetupWindowView.ChartLinesView.DrawLines(Model);
         
         if (Model is { IsAtrModeActive: true })
             SetupWindowView.MainView.UpdateAtrValue(Model, Symbol);

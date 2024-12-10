@@ -105,6 +105,7 @@ public class ExtractedParameters
     public AtrCandle InputAtrCandle { get; set; }
     public bool InputCalculateUnadjustedPositionSize { get; set; }
     public bool InputSurpassBrokerMaxPositionSizeWithMultipleTrades { get; set; }
+    public bool InputUseAsyncOrders { get; set; }
     public RoundingMode InputRoundingPositionSizeAndPotentialReward { get; set; }
     public double InputQuickRisk1Pct { get; set; }
     public double InputQuickRisk2Pct { get; set; }

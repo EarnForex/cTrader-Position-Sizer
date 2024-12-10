@@ -414,6 +414,9 @@ public partial class PositionSizer
     
     [Parameter("Surpass Broker Max Position Size With Multiple Trades", DefaultValue = false, Group = "Miscellaneous")]
     public bool InputSurpassBrokerMaxPositionSizeWithMultipleTrades { get; set; }
+    
+    [Parameter("Use Async Orders", DefaultValue = false, Group = "Miscellaneous")]
+    public bool InputUseAsyncOrders { get; set; }
 
     /// <summary>
     /// Position Size and Potential Reward are Rounded Down
