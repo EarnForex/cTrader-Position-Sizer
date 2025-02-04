@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using cAlgo.API;
 using cAlgo.API.Collections;
 using cAlgo.API.Indicators;
@@ -25,7 +26,7 @@ public partial class PositionSizer : Robot,
     public event EventHandler TimerEvent;
     public event EventHandler StopEvent;
     public IModel Model { get; set; }
-    public const string Version = "v1.06";
+    public const string Version = "v1.09";
     public CustomStyle CustomStyle { get; private set; }
     public BreakEven BreakEven { get; private set; }
     public TrailingStop TrailingStop { get; private set; }
@@ -302,6 +303,15 @@ public partial class PositionSizer : Robot,
     // {
     //     KeyMultiplierFeature = new KeyMultiplierFeature(this);
     // }
+    
+    public static string CleanFileName(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+            return string.Empty;
+
+        // Allow only letters (A-Z, a-z) and numbers (0-9)
+        return Regex.Replace(fileName, "[^a-zA-Z0-9]", "");
+    }
 
     private void SetAtrSettings(bool canImplementModel, IModel storageModel)
     {
@@ -862,7 +872,7 @@ public partial class PositionSizer : Robot,
         switch (InputSymbolChangeAction)
         {
             case SymbolChangeAction.EachSymbolOwnSettings:
-                _fileTag = $"-{SymbolName}";
+                _fileTag = $"-{CleanFileName(SymbolName)}";
                 break;
             case SymbolChangeAction.ResetToDefaultsOnSymbolChange:
             case SymbolChangeAction.KeepPanelAsIs:

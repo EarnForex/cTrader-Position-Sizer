@@ -307,7 +307,7 @@ public sealed class SetupWindowView : Grid,
 
     public void Update(IModel model)
     {
-        _title.Text = $"{DirectionArrow} Position Sizer ({model.Version})";
+        UpdateSpread(model);
         MainView.Update(model);
         RiskView.Update(model);
         TradingView.UpdateValues(model);

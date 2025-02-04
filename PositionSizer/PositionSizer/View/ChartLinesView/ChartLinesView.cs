@@ -350,15 +350,13 @@ public class ChartLinesView : IChartLinesViewResources
 
     public void DrawEntryText(IModel model)
     {
-        if (model.HideLines)
-            return;
-
         if (model.OrderType != OrderType.Instant)
         {
             EntryText = Chart.DrawText(EntryTextTag, $"{GetEntryDistancePips(model):F1}", IndexFromXCoordinate, model.EntryPrice, InputEntryLabelColor);
             EntryText.FontSize = InputLabelsFontSize;
             EntryText.VerticalAlignment = VerticalAlignment.Bottom;
-            EntryText.HorizontalAlignment = HorizontalAlignment.Left;   
+            EntryText.HorizontalAlignment = HorizontalAlignment.Left;
+            EntryText.IsHidden = model.HideLines;
         }
 
         //Additional Entry Label just shows the Position Size

@@ -136,10 +136,13 @@ public partial class PositionSizer
             }
 
             var potentialRisk = sl.HasValue ? Symbol.AmountRisked(vol, sl.Value) : 0;
+            var potentialRiskPct = potentialRisk / Model.AccountSize.Value * 100;
+            
+            Print($"Potential Risk: {potentialRisk} Potential Risk Pct: {potentialRiskPct}");
 
             if (Model.MaxRiskPctTotal != 0)
             {
-                var totalRisk = PositionsByLabelAndComment.Sum(x => x.PctRisk(Model.AccountSize.Value)) + potentialRisk;
+                var totalRisk = PositionsByLabelAndComment.Sum(x => x.PctRisk(Model.AccountSize.Value)) + potentialRiskPct;
         
                 if (totalRisk >= Model.MaxRiskPctTotal)
                 {
@@ -151,7 +154,7 @@ public partial class PositionSizer
 
             if (Model.MaxRiskPctPerSymbol != 0)
             {
-                var totalRiskPerCurrentSymbol = PositionsByLabelAndComment.Where(x => x.SymbolName == SymbolName).Sum(x => x.PctRisk(Model.AccountSize.Value)) + potentialRisk;
+                var totalRiskPerCurrentSymbol = PositionsByLabelAndComment.Where(x => x.SymbolName == SymbolName).Sum(x => x.PctRisk(Model.AccountSize.Value)) + potentialRiskPct;
         
                 if (totalRiskPerCurrentSymbol >= Model.MaxRiskPctPerSymbol)
                 {
