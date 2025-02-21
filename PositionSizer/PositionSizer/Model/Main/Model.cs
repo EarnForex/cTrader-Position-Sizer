@@ -13,6 +13,8 @@ public interface IModelResources
     bool InputSurpassBrokerMaxPositionSizeWithMultipleTrades { get; }
     //--
     Symbol Symbol { get; }
+    Symbols Symbols { get; }
+    Assets Assets { get; }
     Positions Positions { get; }
     TimeFrame TimeFrame { get; }
     PendingOrders PendingOrders { get; }
@@ -34,6 +36,8 @@ public partial class Model : IModel
     private TimeFrame TimeFrame => _resources.TimeFrame;
     private PendingOrders PendingOrders => _resources.PendingOrders;
     private Symbol Symbol => _resources.Symbol;
+    private Symbols Symbols => _resources.Symbols;
+    private Assets Assets => _resources.Assets;
     
     public Model(IModelResources resources)
     {
@@ -245,14 +249,40 @@ public partial class Model : IModel
 
     public double StandardCommission()
     {
-        return Symbol.CommissionType switch
+        //regardless of the commission type, we must return commission per 1 lot
+
+        var usdAsset = Assets.GetAsset("USD");
+        var baseAsset = Symbol.BaseAsset;
+        var accountAsset = Account.Asset;
+
+        if (Symbol.CommissionType == SymbolCommissionType.UsdPerMillionUsdVolume)
         {
-            SymbolCommissionType.UsdPerMillionUsdVolume => Symbol.Commission / 1_000_000,
-            SymbolCommissionType.UsdPerOneLot => Symbol.Commission,
-            SymbolCommissionType.PercentageOfTradingVolume => TradeSize.Volume * Symbol.Commission / 100,
-            SymbolCommissionType.QuoteCurrencyPerOneLot => Symbol.Commission * Symbol.PipValue,
-            _ => throw new ArgumentOutOfRangeException()
-        };
+            var lotSizeOfBaseAssetInAccountCurrency = baseAsset.Convert(accountAsset, Symbol.LotSize);
+            var commissionPerLotInAccountCurrency = Symbol.Commission / 1_000_000.0 * lotSizeOfBaseAssetInAccountCurrency;
+
+            return commissionPerLotInAccountCurrency;
+        }
+
+        if (Symbol.CommissionType == SymbolCommissionType.UsdPerOneLot)
+        {
+            return usdAsset.Convert(accountAsset, Symbol.Commission);
+        }
+
+        if (Symbol.CommissionType == SymbolCommissionType.QuoteCurrencyPerOneLot)
+        {
+            //example if it's EUR/JPY, then the quote currency is JPY
+            //the commission is in JPY per 1 lot
+            //we need to convert it to account currency
+
+            return usdAsset.Convert(Symbol.QuoteAsset, Symbol.Commission);
+        }
+
+        if (Symbol.CommissionType == SymbolCommissionType.PercentageOfTradingVolume)
+        {
+            return -1;
+        }
+        
+        throw new Exception("Unknown commission type");
     }
 
     //Use stringBuilder, a new line for every property that has a getter and setter
