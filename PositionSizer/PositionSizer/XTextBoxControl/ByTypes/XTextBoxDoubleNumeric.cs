@@ -28,9 +28,9 @@ public class XTextBoxDoubleNumeric : XTextBoxNumeric<double>
     {
         Digits = digits;
 
-        if (digits <= 0)
-            // ReSharper disable once LocalizableElement
-            throw new ArgumentOutOfRangeException(nameof(digits), "Digits must be greater than zero");
+        // if (digits <= 0)
+        //     // ReSharper disable once LocalizableElement
+        //     throw new ArgumentOutOfRangeException(nameof(digits), "Digits must be greater than zero");
 
         UpdateTextOfControls(Value);
 

@@ -1173,12 +1173,16 @@ public class MainView : Button, IMainViewResources
     {
         if (model.TakeProfits.Mode == TargetMode.Pips)
         {
-            _takeProfitTb.Digits = 1;
-            _takeProfitTb.ChangeByFactor = 0.1;
+            var changeByFactor = Symbol.TickSize / Symbol.PipSize;
+            var digits = CountDecimals(changeByFactor);
+            
+            _takeProfitTb.Digits = digits;
+            _takeProfitTb.ChangeByFactor = changeByFactor;
+            
             _tpViews.ForEach(view =>
             {
-                view.TakeProfitTextBox.Digits = 1;
-                view.TakeProfitTextBox.ChangeByFactor = 0.1;
+                view.TakeProfitTextBox.Digits = digits;
+                view.TakeProfitTextBox.ChangeByFactor = changeByFactor;
             });
         }
         else
@@ -1197,8 +1201,10 @@ public class MainView : Button, IMainViewResources
     {
         if (model.StopLoss.Mode == TargetMode.Pips)
         {
-            _stopLossTb.Digits = 1;
-            _stopLossTb.ChangeByFactor = 0.1;
+            var changeByFactor = Symbol.TickSize / Symbol.PipSize;
+            
+            _stopLossTb.Digits = CountDecimals(changeByFactor);
+            _stopLossTb.ChangeByFactor = changeByFactor;
         }
         else
         {

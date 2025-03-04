@@ -279,8 +279,11 @@ public class ChartLinesView : IChartLinesViewResources
     {
         if (!InputShowLineLabels)
             return;
+
+        int precision = BotTools.CountDecimals(Symbol.TickSize / Symbol.PipSize);
+        string formatSpecified = $"F{precision}";
         
-        StopLossText = Chart.DrawText(StopLossTextTag, $"{GetStopDistancePips(model):F1}", IndexFromXCoordinate, model.StopLoss.Price, InputStopLossLabelColor);
+        StopLossText = Chart.DrawText(StopLossTextTag, $"{GetStopDistancePips(model).ToString(formatSpecified)}", IndexFromXCoordinate, model.StopLoss.Price, InputStopLossLabelColor);
         StopLossText.IsHidden = model.HideLines;
         StopLossText.FontSize = InputLabelsFontSize;
         StopLossText.VerticalAlignment = VerticalAlignment.Bottom;
@@ -352,7 +355,10 @@ public class ChartLinesView : IChartLinesViewResources
     {
         if (model.OrderType != OrderType.Instant)
         {
-            EntryText = Chart.DrawText(EntryTextTag, $"{GetEntryDistancePips(model):F1}", IndexFromXCoordinate, model.EntryPrice, InputEntryLabelColor);
+            int precision = BotTools.CountDecimals(Symbol.TickSize / Symbol.PipSize);
+            string formatSpecified = $"F{precision}";
+            
+            EntryText = Chart.DrawText(EntryTextTag, $"{GetEntryDistancePips(model).ToString(formatSpecified)}", IndexFromXCoordinate, model.EntryPrice, InputEntryLabelColor);
             EntryText.FontSize = InputLabelsFontSize;
             EntryText.VerticalAlignment = VerticalAlignment.Bottom;
             EntryText.HorizontalAlignment = HorizontalAlignment.Left;
@@ -556,7 +562,10 @@ public class ChartLinesView : IChartLinesViewResources
 
                     if (targetLine.TargetTextObj != null)
                     {
-                        targetLine.TargetTextObj = Chart.DrawText(TargetLine.TargetTextTag + index, $"{GetTargetDistancePips(model, index):F1}", IndexFromXCoordinate, takeProfit.Price, InputTpLabelColor);
+                        int precision = BotTools.CountDecimals(Symbol.TickSize / Symbol.PipSize);
+                        string formatSpecified = $"F{precision}";
+                        
+                        targetLine.TargetTextObj = Chart.DrawText(TargetLine.TargetTextTag + index, $"{GetTargetDistancePips(model, index).ToString(formatSpecified)}", IndexFromXCoordinate, takeProfit.Price, InputTpLabelColor);
                         targetLine.TargetTextObj.FontSize = InputLabelsFontSize;
                         targetLine.TargetTextObj.IsHidden = model.HideLines;
                         targetLine.TargetTextObj.VerticalAlignment = VerticalAlignment.Bottom;
@@ -621,7 +630,11 @@ public class ChartLinesView : IChartLinesViewResources
         if (StopLossText != null)
         {
             StopLossText.Y = model.StopLoss.Price;
-            StopLossText.Text = $"{GetStopDistancePips(model):F1}";   
+            
+            int precision = BotTools.CountDecimals(Symbol.TickSize / Symbol.PipSize);
+            string formatSpecified = $"F{precision}";
+            
+            StopLossText.Text = $"{GetStopDistancePips(model).ToString(formatSpecified)}";
         }
 
         if (InputShowAdditionalStopLossLabel)
