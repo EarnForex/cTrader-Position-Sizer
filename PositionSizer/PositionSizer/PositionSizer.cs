@@ -26,7 +26,7 @@ public partial class PositionSizer : Robot,
     public event EventHandler TimerEvent;
     public event EventHandler StopEvent;
     public IModel Model { get; set; }
-    public const string Version = "v1.12";
+    public const string Version = "v1.15";
     public CustomStyle CustomStyle { get; private set; }
     public BreakEven BreakEven { get; private set; }
     public TrailingStop TrailingStop { get; private set; }
@@ -34,6 +34,7 @@ public partial class PositionSizer : Robot,
     private readonly List<IRiskManager> _riskManagers = new();
     private List<string> _changedProperties;
     private string _fileTag;
+    public string CleanBrokerName {get; private set;}
     // ReSharper disable once GrammarMistakeInComment
     //public KeyMultiplierFeature KeyMultiplierFeature { get; private set; }
 
@@ -80,22 +81,23 @@ public partial class PositionSizer : Robot,
         Print("Message ", exception.Message);
         Print("Stack Trace", exception.StackTrace);
         
+        var sbException = new StringBuilder();
+        sbException.AppendLine($"Message: {exception.Message}");
+        sbException.AppendLine($"StackTrace: {exception.StackTrace}");
+        
         Chart.DrawStaticText("Error",
-            $"Message: {exception.Message} /n StackTrace: {exception.StackTrace}",
+            sbException.ToString(),
             VerticalAlignment.Top,
             HorizontalAlignment.Right,
             Color.Red);
 
         if (exception.InnerException != null)
         {
-            Print($"Inner Message: ", exception.InnerException.Message);
-            Print($"Inner Stack Trace: ", exception.InnerException.StackTrace);
+            var sbInnerException = new StringBuilder();
+            sbInnerException.AppendLine($"Message: {exception.InnerException.Message}");
+            sbInnerException.AppendLine($"StackTrace: {exception.InnerException.StackTrace}");
             
-            Chart.DrawStaticText("Inner Error",
-                $"Message: {exception.InnerException.Message} /n StackTrace: {exception.InnerException.StackTrace}",
-                VerticalAlignment.Bottom,
-                HorizontalAlignment.Right,
-                Color.OrangeRed);
+            Chart.DrawStaticText("Inner Error", sbInnerException.ToString(), VerticalAlignment.Bottom, HorizontalAlignment.Right, Color.OrangeRed);
         }
     }
 
@@ -117,6 +119,7 @@ public partial class PositionSizer : Robot,
 
     private void Initialize()
     {
+        SetBrokerName();
         SetFileTag();
         ProcessOldAndNewParametersIfNeeded();
         SetIndexForLabels();
@@ -126,10 +129,10 @@ public partial class PositionSizer : Robot,
         
         Model = LoggingProxy<IModel>.Create(new Model(this));
         
-        var storageModel = LocalStorage.GetObject<Model>($"model{_fileTag}", LocalStorageScope.Instance);
+        var storageModel = LocalStorage.GetObject<Model>($"{CleanBrokerName}-model{_fileTag}", LocalStorageScope.Instance);
         
         Model.Version = Version;
-        Model.SymbolName = SymbolName;
+        Model.SymbolName = SymbolName.Replace(" ", "");
         
         var canImplementModel = CanImplementModelOrPropertyChange(storageModel);
         
@@ -284,7 +287,7 @@ public partial class PositionSizer : Robot,
             StopEvent += (_, _) =>
             {
                 Print($"Stop Event Fired...");
-                LocalStorage.SetObject($"model{_fileTag}", Model, LocalStorageScope.Instance);
+                LocalStorage.SetObject($"{CleanBrokerName}-model{_fileTag}", Model, LocalStorageScope.Instance);
                 LocalStorage.Flush(LocalStorageScope.Instance);
             };
         }
@@ -304,13 +307,13 @@ public partial class PositionSizer : Robot,
     //     KeyMultiplierFeature = new KeyMultiplierFeature(this);
     // }
     
-    public static string CleanFileName(string fileName)
+    public static string CleanName(string fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName))
             return string.Empty;
 
         // Allow only letters (A-Z, a-z) and numbers (0-9)
-        return Regex.Replace(fileName, "[^a-zA-Z0-9]", "");
+        return Regex.Replace(fileName, "[^a-zA-Z0-9]", "").Replace(" ", "");
     }
 
     private void SetAtrSettings(bool canImplementModel, IModel storageModel)
@@ -853,17 +856,22 @@ public partial class PositionSizer : Robot,
         //Step 6: Load Model from file
         //Step 7: Override Default Model with Model from File if needed
         //Step 8: Override Model from file with changed parameters where it applies
-        var oldParameters = LocalStorage.GetObject<ExtractedParameters>($"position-sizer-parameters{_fileTag}",
+        var oldParameters = LocalStorage.GetObject<ExtractedParameters>($"{CleanBrokerName}-position-sizer-parameters{_fileTag}",
                 LocalStorageScope.Instance);
         
         var newParameters = CopyParametersFromInstance();
         
         LoadChangedParametersIfAny(oldParameters, newParameters);
         
-        LocalStorage.SetObject($"position-sizer-parameters{_fileTag}", newParameters, LocalStorageScope.Instance);
+        LocalStorage.SetObject($"{CleanBrokerName}-position-sizer-parameters{_fileTag}", newParameters, LocalStorageScope.Instance);
         LocalStorage.Flush(LocalStorageScope.Instance);
         
         Print("Parameters updated to file...");
+    }
+    
+    private void SetBrokerName()
+    {
+        CleanBrokerName = CleanName(Account.BrokerName);
     }
 
     private void SetFileTag()
@@ -872,7 +880,7 @@ public partial class PositionSizer : Robot,
         switch (InputSymbolChangeAction)
         {
             case SymbolChangeAction.EachSymbolOwnSettings:
-                _fileTag = $"-{CleanFileName(SymbolName)}";
+                _fileTag = $"-{CleanName(SymbolName)}";
                 break;
             case SymbolChangeAction.ResetToDefaultsOnSymbolChange:
             case SymbolChangeAction.KeepPanelAsIs:
@@ -951,7 +959,7 @@ public partial class PositionSizer : Robot,
                 var areTheSame = m.SymbolName == Model.SymbolName;
                 if (!areTheSame)
                 {
-                    LocalStorage.Remove($"model");
+                    LocalStorage.Remove($"{CleanBrokerName}-model");
                     LocalStorage.Flush(LocalStorageScope.Instance);
                 }
 

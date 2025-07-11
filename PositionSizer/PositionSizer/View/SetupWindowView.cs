@@ -75,6 +75,7 @@ public interface ISetupWindowResources
     //KeyMultiplierFeature KeyMultiplierFeature { get; }
     bool InputDarkMode { get; }
     LocalStorage LocalStorage { get; }
+    string CleanBrokerName { get; }
 }
 
 public enum WindowActive
@@ -183,7 +184,7 @@ public sealed class SetupWindowView : Grid,
             Text = TitleAndVersion
         };
         
-        var wasHidden = LocalStorage.GetString("wasHidden");
+        var wasHidden = LocalStorage.GetString($"{CleanBrokerName}-wasHidden");
 
         _hideShow = new Button
         {
@@ -307,13 +308,13 @@ public sealed class SetupWindowView : Grid,
 
     public void Update(IModel model)
     {
+        ChartLinesView.UpdateLines(model);
         UpdateSpread(model);
         MainView.Update(model);
         RiskView.Update(model);
         TradingView.UpdateValues(model);
         MarginView.Update(model);
         SwapsView.Update(model);
-        ChartLinesView.UpdateLines(model);
         
         //Chart.DrawStaticText("PositionSizer", model.MainModel.ToString(), VerticalAlignment.Bottom, HorizontalAlignment.Right, Color.Red);
     }
@@ -550,7 +551,7 @@ public sealed class SetupWindowView : Grid,
             _stackPanel.AddChild(_selectorView);
             _stackPanel.RemoveChild(ViewUsed);
             
-            LocalStorage.SetString("wasHidden", "N", LocalStorageScope.Instance);
+            LocalStorage.SetString($"{CleanBrokerName}-wasHidden", "N", LocalStorageScope.Instance);
             LocalStorage.Flush(LocalStorageScope.Instance);
 
             ViewUsed = Model.LastKnownState.WindowActive switch
@@ -569,7 +570,7 @@ public sealed class SetupWindowView : Grid,
         {
             _hideShow.Text = "🗗";
 
-            LocalStorage.SetString("wasHidden", "Y", LocalStorageScope.Instance);
+            LocalStorage.SetString($"{CleanBrokerName}-wasHidden", "Y", LocalStorageScope.Instance);
             LocalStorage.Flush(LocalStorageScope.Instance);
             
             _stackPanel.RemoveChild(_selectorView);
@@ -687,6 +688,7 @@ public sealed class SetupWindowView : Grid,
     //public KeyMultiplierFeature KeyMultiplierFeature => _resources.KeyMultiplierFeature;
     public bool InputDarkMode => _resources.InputDarkMode;
     public LocalStorage LocalStorage => _resources.LocalStorage;
+    public string CleanBrokerName => _resources.CleanBrokerName;
 
     private void OnHideShowClickEvent()
     {

@@ -1156,9 +1156,9 @@ public class MainView : Button, IMainViewResources
 
             var tpView = _tpViews[index];
 
-            tpView.TakeProfitTextBox.Value = model.TakeProfits.Mode == TargetMode.Price
+            tpView.TakeProfitTextBox.SetValueWithoutTriggeringEvent(model.TakeProfits.Mode == TargetMode.Price
                 ? takeProfit.Price
-                : takeProfit.Pips;
+                : takeProfit.Pips);
         }
     }
 
