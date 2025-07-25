@@ -383,6 +383,9 @@ public partial class PositionSizer
 
     private void SymbolOnTick(SymbolTickEventArgs obj)
     {
+        if (double.IsNaN(Ask) || double.IsNaN(Bid))
+            return;
+        
         SetupWindowView.UpdateSpread(Model);
         
         if (SetupWindowView.ViewUsed == SetupWindowView.RiskView)
@@ -397,7 +400,7 @@ public partial class PositionSizer
         if (Model.OrderType != OrderType.Instant)
             return;
         
-        Model.UpdateEntryPrice(Model.TradeType == TradeType.Buy ? obj.Ask : obj.Bid, EntryPriceUpdateReason.TickUpdate);
+        Model.UpdateEntryPrice(Model.TradeType == TradeType.Buy ? Ask : Bid, EntryPriceUpdateReason.TickUpdate);
     }
 
     private void OnStopEvent(object sender, EventArgs e)

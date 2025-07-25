@@ -225,16 +225,68 @@ public partial class PositionSizer
                     if (Model.EntryPrice >= Symbol.Ask)
                     {
                         if (InputUseAsyncOrders)
-                            PlaceStopOrderAsync(Model.TradeType, SymbolName, volume, Model.EntryPrice, Model.Label, sl, tp, expiry, comment);
+                        {
+                            PlaceStopOrderAsync(
+                                tradeType: Model.TradeType,
+                                symbolName: SymbolName,
+                                volume: volume,
+                                targetPrice: Model.EntryPrice,
+                                label: Model.Label,
+                                stopLoss: sl,
+                                takeProfit: tp,
+                                protectionType: ProtectionType.Relative, //pips
+                                expiration: expiry,
+                                comment: comment,
+                                hasTrailingStop: false,
+                                stopLossTriggerMethod: StopTriggerMethod.Trade, //default 
+                                stopOrderTriggerMethod: StopTriggerMethod.Trade,
+                                callback: null);
+                        }
                         else
-                            PlaceStopOrder(Model.TradeType, SymbolName, volume, Model.EntryPrice, Model.Label, sl, tp, expiry, comment);
+                        {
+                            PlaceStopOrder(
+                                tradeType: Model.TradeType,
+                                symbolName: SymbolName,
+                                volume: volume,
+                                targetPrice: Model.EntryPrice,
+                                label: Model.Label,
+                                stopLoss: sl,
+                                takeProfit: tp,
+                                protectionType: ProtectionType.Relative,
+                                expiration: expiry,
+                                comment: comment);
+                        }
                     }
                     else
                     {
                         if (InputUseAsyncOrders)
-                            PlaceLimitOrderAsync(Model.TradeType, SymbolName, volume, Model.EntryPrice, Model.Label, sl, tp, expiry, comment);
+                        {
+                            PlaceLimitOrderAsync(
+                                tradeType: Model.TradeType,
+                                symbolName: SymbolName,
+                                volume: volume,
+                                targetPrice: Model.EntryPrice,
+                                label: Model.Label,
+                                stopLoss: sl,
+                                takeProfit: tp,
+                                protectionType: ProtectionType.Relative,
+                                expiration: expiry,
+                                comment: comment);
+                        }
                         else
-                            PlaceLimitOrder(Model.TradeType, SymbolName, volume, Model.EntryPrice, Model.Label, sl, tp, expiry, comment);
+                        {
+                            PlaceLimitOrder(
+                                tradeType: Model.TradeType,
+                                symbolName: SymbolName,
+                                volume: volume,
+                                targetPrice: Model.EntryPrice,
+                                label: Model.Label,
+                                stopLoss: sl,
+                                takeProfit: tp,
+                                protectionType: ProtectionType.Relative,
+                                expiration: expiry,
+                                comment: comment);
+                        }
                     }
                 }
                 else
@@ -242,16 +294,64 @@ public partial class PositionSizer
                     if (Model.EntryPrice >= Symbol.Bid)
                     {
                         if (InputUseAsyncOrders)
-                            PlaceLimitOrderAsync(Model.TradeType, SymbolName, volume, Model.EntryPrice, Model.Label, sl, tp, expiry, comment);
+                        {
+                            PlaceLimitOrderAsync(
+                                tradeType: Model.TradeType,
+                                symbolName: SymbolName,
+                                volume: volume,
+                                targetPrice: Model.EntryPrice,
+                                label: Model.Label,
+                                stopLoss: sl,
+                                takeProfit: tp,
+                                protectionType: ProtectionType.Relative,
+                                expiration: expiry,
+                                comment: comment);
+                        }
                         else
-                            PlaceLimitOrder(Model.TradeType, SymbolName, volume, Model.EntryPrice, Model.Label, sl, tp, expiry, comment);
+                        {
+                            PlaceLimitOrder(
+                                tradeType: Model.TradeType,
+                                symbolName: SymbolName,
+                                volume: volume,
+                                targetPrice: Model.EntryPrice,
+                                label: Model.Label,
+                                stopLoss: sl,
+                                takeProfit: tp,
+                                protectionType: ProtectionType.Relative,
+                                expiration: expiry,
+                                comment: comment);
+                        }
                     }
                     else
                     {
                         if (InputUseAsyncOrders)
-                            PlaceStopOrderAsync(Model.TradeType, SymbolName, volume, Model.EntryPrice, Model.Label, sl, tp, expiry, comment);
+                        {
+                            PlaceStopOrderAsync(
+                                tradeType: Model.TradeType,
+                                symbolName: SymbolName,
+                                volume: volume,
+                                targetPrice: Model.EntryPrice,
+                                label: Model.Label,
+                                stopLoss: sl,
+                                takeProfit: tp,
+                                protectionType: ProtectionType.Relative,
+                                expiration: expiry,
+                                comment: comment);
+                        }
                         else
-                            PlaceStopOrder(Model.TradeType, SymbolName, volume, Model.EntryPrice, Model.Label, sl, tp, expiry, comment);
+                        {
+                            PlaceStopOrder(
+                                tradeType: Model.TradeType,
+                                symbolName: SymbolName,
+                                volume: volume,
+                                targetPrice: Model.EntryPrice,
+                                label: Model.Label,
+                                stopLoss: sl,
+                                takeProfit: tp,
+                                protectionType: ProtectionType.Relative,
+                                expiration: expiry,
+                                comment: comment);
+                        }
                     }
                 }
 
@@ -260,9 +360,36 @@ public partial class PositionSizer
                 var stopLimitRangePips = Math.Round(Math.Abs(Model.StopLimitPrice - Model.EntryPrice), 1);
                 
                 if (InputUseAsyncOrders)
-                    PlaceStopLimitOrderAsync(Model.TradeType, SymbolName, volume, Model.EntryPrice, stopLimitRangePips, Model.Label, sl, tp, expiry, comment);
+                {
+                    PlaceStopLimitOrderAsync(
+                        tradeType: Model.TradeType,
+                        symbolName: SymbolName,
+                        volume: volume,
+                        targetPrice: Model.EntryPrice,
+                        stopLimitRangePips: stopLimitRangePips,
+                        label: Model.Label,
+                        stopLoss: sl,
+                        takeProfit: tp,
+                        protectionType: ProtectionType.Relative,
+                        expiration: expiry,
+                        comment: comment);
+                }
                 else
-                    PlaceStopLimitOrder(Model.TradeType, SymbolName, volume, Model.EntryPrice, stopLimitRangePips, Model.Label, sl, tp, expiry, comment);
+                {
+                    PlaceStopLimitOrder(
+                        tradeType: Model.TradeType,
+                        symbolName: SymbolName,
+                        volume: volume,
+                        targetPrice: Model.EntryPrice,
+                        stopLimitRangePips: stopLimitRangePips,
+                        label: Model.Label,
+                        stopLoss: sl,
+                        takeProfit: tp,
+                        protectionType: ProtectionType.Relative,
+                        expiration: expiry,
+                        comment: comment);
+                }
+
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
@@ -298,8 +425,13 @@ public partial class PositionSizer
                                 ? r.Position.EntryPrice + tp * Symbol.PipSize
                                 : r.Position.EntryPrice - tp * Symbol.PipSize; 
                         }
-
-                        ModifyPositionAsync(r.Position, slPrice, tpPrice);
+                        
+                        ModifyPositionAsync(
+                            position: r.Position,
+                            stopLoss: slPrice,
+                            takeProfit: tpPrice,
+                            protectionType: ProtectionType.Absolute,
+                            callback: null);
                     }
                 });
 
@@ -336,8 +468,13 @@ public partial class PositionSizer
                                 ? r.Position.EntryPrice + tp * Symbol.PipSize
                                 : r.Position.EntryPrice - tp * Symbol.PipSize; 
                         }
-
-                        ModifyPositionAsync(r.Position, slPrice, tpPrice);
+                        
+                        ModifyPositionAsync(
+                            position: r.Position,
+                            stopLoss: slPrice,
+                            takeProfit: tpPrice,
+                            protectionType: ProtectionType.Absolute,
+                            callback: null);
                     }
                 });
                 return;
@@ -365,8 +502,12 @@ public partial class PositionSizer
                     ? result.Position.EntryPrice + tp * Symbol.PipSize
                     : result.Position.EntryPrice - tp * Symbol.PipSize; 
             }
-
-            ModifyPosition(result.Position, slPrice, tpPrice);
+            
+            ModifyPosition(
+                position: result.Position,
+                stopLoss: slPrice,
+                takeProfit: tpPrice,
+                protectionType: ProtectionType.Absolute);
         }
     }
 }

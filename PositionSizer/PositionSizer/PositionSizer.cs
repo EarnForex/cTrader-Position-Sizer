@@ -26,7 +26,7 @@ public partial class PositionSizer : Robot,
     public event EventHandler TimerEvent;
     public event EventHandler StopEvent;
     public IModel Model { get; set; }
-    public const string Version = "v1.15";
+    public const string Version = "v1.16";
     public CustomStyle CustomStyle { get; private set; }
     public BreakEven BreakEven { get; private set; }
     public TrailingStop TrailingStop { get; private set; }
@@ -343,8 +343,6 @@ public partial class PositionSizer : Robot,
 
             if (_changedProperties.Contains("InputShowAtrOptions") && InputShowAtrOptions)
             {
-                //Means the old state was not ATR, in this case we update based on the SL/TP
-                //See why at: https://github.com/Waxavi/Andrii-moraru-ctrader/issues/35#issuecomment-2283351534
                 Model.StopLossMultiplier = Model.StopLoss.Pips / Model.GetAtrPips();
             }
             else if (_changedProperties.Contains("InputDefaultAtrMultiplierStopLoss"))
