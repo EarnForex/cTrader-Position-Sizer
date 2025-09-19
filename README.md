@@ -1,3 +1,4 @@
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/badges/StandWithUkraine.svg)](https://github.com/vshymanskyy/StandWithUkraine/blob/main/docs/README.md)
 # cTrader Position Sizer
 
 The cTrader Position Sizer robot by EarnForex.com is a version of the [similar MetaTrader tool](https://github.com/EarnForex/PositionSizer).
