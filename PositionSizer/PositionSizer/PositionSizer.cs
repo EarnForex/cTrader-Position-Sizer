@@ -4,7 +4,7 @@
 //   WARNING: No warranty. This EA is offered "as is". Use at your own risk.
 //   Note: Pressing Shift+T will open a trade.
 //   
-//   Version 1.18.
+//   Version 1.19.
 //   Copyright 2024-2025, EarnForex.com
 //   https://www.earnforex.com/ctrader-robots/cTrader-Position-Sizer/
 // -------------------------------------------------------------------------------
@@ -35,7 +35,7 @@ public partial class PositionSizer : Robot,
     public event EventHandler TimerEvent;
     public event EventHandler StopEvent;
     public IModel Model { get; set; }
-    public const string Version = "v1.18";
+    public const string Version = "v1.19";
     public CustomStyle CustomStyle { get; private set; }
     public BreakEven BreakEven { get; private set; }
     public TrailingStop TrailingStop { get; private set; }
