@@ -9,8 +9,8 @@ public partial class PositionSizer
     /// <summary>
     /// Show pip distance for TP/SL near lines
     /// </summary>
-    [Parameter("Show Line Labels", DefaultValue = true, Group = "Compactness", Description = "Show pip distance for TP/SL near lines")]
-    public bool InputShowLineLabels { get; set; }
+    [Parameter("Show Main Line Labels", DefaultValue = true, Group = "Compactness", Description = "Show pip distance for TP/SL near lines")]
+    public bool InputShowMainLineLabels { get; set; }
 
     /// <summary>
     /// Show SL $/% label
@@ -489,6 +489,9 @@ public partial class PositionSizer
     
     [Parameter("Chart Trade Button Offset From The Right", DefaultValue = 50, Group = "Miscellaneous")]
     public int InputTradeButtonOffsetFromTheRight { get; set; }
+    
+    [Parameter("Keep Lines When Robot Is Stopped", DefaultValue = false, Group = "Miscellaneous")]
+    public bool InputKeepLinesWhenRobotIsStopped { get; set; }
     
     #endregion
     

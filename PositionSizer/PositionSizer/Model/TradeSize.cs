@@ -19,6 +19,7 @@ public class TradeSize
     public double Volume => Symbol.QuantityToVolumeInUnits(Lots);
     public double RiskPercentage { get; set; }
     public double RiskPercentageResult { get; set; }
+    public double RewardPercentageResult => RiskPercentageResult * RewardRiskRatioResult;
     public double RiskInCurrency { get; set; }
     public double RewardRiskRatio { get; set; }
     public double RiskInCurrencyResult { get; set; }

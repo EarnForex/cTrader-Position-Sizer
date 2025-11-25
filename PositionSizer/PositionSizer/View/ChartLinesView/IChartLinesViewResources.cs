@@ -7,6 +7,7 @@ namespace cAlgo.Robots;
 
 public interface IChartLinesViewResources
 {
+    IAccount Account { get; }
     Chart Chart { get; }
     Symbol Symbol { get; }
     IServer Server { get; }
@@ -14,7 +15,7 @@ public interface IChartLinesViewResources
     Color InputEntryLineColor { get; }
     LineStyle InputEntryLineStyle { get; }
     int InputEntryLineWidth { get; }
-    bool InputShowLineLabels { get; }
+    bool InputShowMainLineLabels { get; }
     int IndexForLabelReference { get; }
 
     Color InputStopLossLineColor { get; }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Security;
 using cAlgo.API;
 using cAlgo.API.Internals;
@@ -28,6 +29,14 @@ public class ChartLinesView : IChartLinesViewResources
     private DateTime _lastTimeChecked;
     private double _furtherXCoordinate;
     private Button _tradeButton;
+
+    public IEnumerable<ChartHorizontalLine> HorizontalLines =>
+        new[]
+        {
+            EntryLine,
+            StopLossLine,
+            StopPriceLine
+        }.Concat(TargetLines.Select(x => x.TargetLineObj));
 
     private int IndexFromXCoordinate
     {
@@ -280,7 +289,7 @@ public class ChartLinesView : IChartLinesViewResources
 
     private void DrawStopText(IModel model)
     {
-        if (!InputShowLineLabels)
+        if (!InputShowMainLineLabels)
             return;
 
         int precision = BotTools.CountDecimals(Symbol.TickSize / Symbol.PipSize);
@@ -341,7 +350,7 @@ public class ChartLinesView : IChartLinesViewResources
                 targetLine.TargetAdditionalTextObj.IsHidden = model.HideLines;
             }
 
-            if (InputShowLineLabels)
+            if (InputShowMainLineLabels)
             {
                 targetLine.TargetTextObj = Chart.DrawText(TargetLine.TargetTextTag + index, $"{GetTargetDistancePips(model, index):F1}", IndexFromXCoordinate, takeProfit.Price, InputTpLabelColor);
                 targetLine.TargetTextObj.FontSize = InputLabelsFontSize;
@@ -409,10 +418,7 @@ public class ChartLinesView : IChartLinesViewResources
     
     private string GetExtraStopLossText(IModel model)
     {
-        var slUsd = Symbol.AmountRisked(model.TradeSize.Volume, model.StopLoss.Pips);
-        var slPct = (slUsd / model.AccountSize.Value) * 100.0;
-        
-        return $"{slPct:F2}% ({slUsd:F2} USD)";
+        return $"{model.TradeSize.RiskPercentageResult:F2}% ({model.TradeSize.RiskInCurrencyResult:F2} {Account.Asset.Name})";
     }
 
     private string GetExtraTakeProfitText(IModel model, int tpIndex)
@@ -421,24 +427,38 @@ public class ChartLinesView : IChartLinesViewResources
         //if there are multiple takeProfit-targetLines, it writes the lot sizes first (the lot sizes are split equally)
         if (model.TakeProfits.List.Count == 1)
         {
-            var tpUsd = Symbol.AmountRisked(model.TradeSize.Volume, model.TakeProfits.List[0].Pips);
-            var slRisked = Symbol.AmountRisked(model.TradeSize.Volume, model.StopLoss.Pips);
-            var tpPct = (tpUsd / model.AccountSize.Value) * 100.0;
-            var rr = tpUsd / slRisked;
-            
-            return $"{tpPct:F2}% ({tpUsd:F2} USD) {rr:F2}R";
+            return $"{model.TradeSize.RewardPercentageResult:F2}% ({model.TradeSize.RewardCurrencyResult:F2} {Account.Asset.Name}) {model.TradeSize.RewardRiskRatioResult:F2}R";
         }
-        else
-        {
-            var distribution = model.TakeProfits.List[tpIndex].Distribution / 100.0;
-            var tpUsd = Symbol.AmountRisked(model.TradeSize.Volume * distribution, model.TakeProfits.List[tpIndex].Pips);
-            var slRisked = Symbol.AmountRisked(model.TradeSize.Volume * distribution, model.StopLoss.Pips);
-            var tpPct = (tpUsd / model.AccountSize.Value) * 100.0;
-            var rr = tpUsd / slRisked;
-            var lots = model.TradeSize.Lots; 
-            
-            return $"{lots * distribution:F2} Lots {tpPct:F2}% ({tpUsd:F2} USD) {rr:F2}R";
-        }
+
+        // var distribution = model.TakeProfits.List[tpIndex].Distribution / 100.0;
+        // var tpCurrency = Symbol.AmountRisked(model.TradeSize.Volume * distribution, model.TakeProfits.List[tpIndex].Pips);
+        // var slRisked = Symbol.AmountRisked(model.TradeSize.Volume * distribution, model.StopLoss.Pips);
+        // var tpPct = (tpCurrency / model.AccountSize.Value) * 100.0;
+        // var rr = tpCurrency / slRisked;
+        // var lots = model.TradeSize.Lots; 
+        //     
+        // return $"{lots * distribution:F2} Lots {tpPct:F2}% ({tpCurrency:F2} {Account.Asset.Name}) {rr:F2}R";
+        
+        //--
+        
+        var volumeDistribution = model.TakeProfits.List[tpIndex].Distribution / 100.0;
+
+        // Distribute the lots proportionally
+        var lots = model.TradeSize.Lots * volumeDistribution;
+
+        // Calculate reward percentage for this TP using the risk-reward relationship
+        var tpPips = model.TakeProfits.List[tpIndex].Pips;
+        var slPips = model.StopLoss.Pips;
+        var rewardRiskRatio = tpPips / slPips;
+
+        // Distribute the reward percentage and currency proportionally
+        var tpPct = model.TradeSize.RiskPercentageResult * rewardRiskRatio * volumeDistribution;
+        var tpCurrency = model.TradeSize.RiskInCurrencyResult * rewardRiskRatio * volumeDistribution;
+
+        // The R/R ratio for this specific TP
+        var rr = rewardRiskRatio;
+
+        return $"{lots:F2} Lots {tpPct:F2}% ({tpCurrency:F2} {Account.Asset.Name}) {rr:F2}R";
     }
     
     // private void UpdateTextOfFirstTakeProfitWithLots(MainModel model)
@@ -453,13 +473,8 @@ public class ChartLinesView : IChartLinesViewResources
     
     private void UpdateTextOfFirstTakeProfitWithoutLots(IModel model)
     {
-        var tpUsd = Symbol.AmountRisked(model.TradeSize.Volume, model.TakeProfits.List[0].Pips);
-        var slRisked = Symbol.AmountRisked(model.TradeSize.Volume, model.StopLoss.Pips);
-        var tpPct = (tpUsd / model.AccountSize.Value) * 100.0;
-        var rr = tpUsd / slRisked;
-        
         if (InputShowAdditionalTpLabel)
-            TargetLines[0].TargetAdditionalTextObj.Text = $"{tpPct:F2}% ({tpUsd:F2} USD) {rr:F2}R";
+            TargetLines[0].TargetAdditionalTextObj.Text = $"{model.TradeSize.RewardPercentageResult:F2}% ({model.TradeSize.RewardCurrencyResult:F2} {Account.Asset.Name}) {model.TradeSize.RewardRiskRatioResult:F2}R";
     }
 
     public void UpdateLines(IModel model)
@@ -541,7 +556,7 @@ public class ChartLinesView : IChartLinesViewResources
                         targetLine.TargetAdditionalTextObj.IsHidden = model.HideLines;
                     }
 
-                    if (InputShowLineLabels)
+                    if (InputShowMainLineLabels)
                     {
                         targetLine.TargetTextObj = Chart.DrawText(TargetLine.TargetTextTag + index, $"{GetTargetDistancePips(model, index):F1}", IndexFromXCoordinate, takeProfit.Price, InputTpLabelColor);
                         targetLine.TargetTextObj.FontSize = InputLabelsFontSize;
@@ -606,8 +621,8 @@ public class ChartLinesView : IChartLinesViewResources
             if (model.TakeProfits.List[0].Pips == 0)
             {
                 TargetLines[0].TargetLineObj.IsHidden = true;
-            
-                if (InputShowLineLabels)
+
+                if (InputShowMainLineLabels)
                     TargetLines[0].TargetTextObj.IsHidden = true;
             
                 if (InputShowAdditionalTpLabel)
@@ -616,8 +631,8 @@ public class ChartLinesView : IChartLinesViewResources
             else
             {
                 TargetLines[0].TargetLineObj.IsHidden = model.HideLines;
-            
-                if (InputShowLineLabels)
+
+                if (InputShowMainLineLabels)
                     TargetLines[0].TargetTextObj.IsHidden = model.HideLines;
             
                 if (InputShowAdditionalTpLabel)
@@ -685,70 +700,99 @@ public class ChartLinesView : IChartLinesViewResources
 
     public void HideLines()
     {
-        EntryLine.IsHidden = true;
+        if (EntryLine != null)
+            EntryLine.IsHidden = true;
         
         if (EntryText != null)
             EntryText.IsHidden = true;
         
         if (InputShowAdditionalEntryLabel /*&& InputAdditionalTradeButtons is AdditionalTradeButtons.Both or AdditionalTradeButtons.AboveTheEntryLine*/)
-            EntryAdditionalText.IsHidden = true;
-        
+        {
+            if (EntryAdditionalText != null)
+                EntryAdditionalText.IsHidden = true;
+        }
+
         for (var index = 0; index < TargetLines.Count; index++)
         {
             var targetLine = TargetLines[index];
             
-            targetLine.TargetLineObj.IsHidden = true;
-            targetLine.TargetTextObj.IsHidden = true;
+            if (targetLine.TargetLineObj != null)
+                targetLine.TargetLineObj.IsHidden = true;
+            
+            if (targetLine.TargetTextObj != null)
+                targetLine.TargetTextObj.IsHidden = true;
             
             if (InputShowAdditionalTpLabel)
-                targetLine.TargetAdditionalTextObj.IsHidden = true;
+            {
+                if (targetLine.TargetAdditionalTextObj != null)
+                    targetLine.TargetAdditionalTextObj.IsHidden = true;
+            }
         }
         
-        StopLossLine.IsHidden = true;
-        StopLossText.IsHidden = true;
+        if (StopLossLine != null)
+            StopLossLine.IsHidden = true;
+        
+        if (StopLossText != null)
+            StopLossText.IsHidden = true;
         
         if (InputShowAdditionalStopLossLabel)
-            StopAdditionalText.IsHidden = true;
-        
-        if (StopPriceLine != null)
         {
-            StopPriceLine.IsHidden = true;
-            StopPriceText.IsHidden = true;
+            if (StopAdditionalText != null)
+                StopAdditionalText.IsHidden = true;
         }
+
+        if (StopPriceLine != null) 
+            StopPriceLine.IsHidden = true;
+        
+        if (StopPriceText != null)
+            StopPriceText.IsHidden = true;
     }
 
     public void ShowLines()
     {
-        EntryLine.IsHidden = false;
+        if (EntryLine != null)
+            EntryLine.IsHidden = false;
         
         if (EntryText != null)
             EntryText.IsHidden = false;
         
         if (InputShowAdditionalEntryLabel /*&& InputAdditionalTradeButtons is AdditionalTradeButtons.Both or AdditionalTradeButtons.AboveTheEntryLine*/)
-            EntryAdditionalText.IsHidden = false;
+        {
+            if (EntryAdditionalText != null)
+                EntryAdditionalText.IsHidden = false;
+        }
 
         for (var index = 0; index < TargetLines.Count; index++)
         {
             var targetLine = TargetLines[index];
             
-            targetLine.TargetLineObj.IsHidden = false;
-            targetLine.TargetTextObj.IsHidden = false;
+            if (targetLine.TargetLineObj != null)
+                targetLine.TargetLineObj.IsHidden = false;
+            
+            if (targetLine.TargetTextObj != null)
+                targetLine.TargetTextObj.IsHidden = false;
             
             if (InputShowAdditionalTpLabel)
-                targetLine.TargetAdditionalTextObj.IsHidden = false;
+            {
+                if (targetLine.TargetAdditionalTextObj != null)
+                    targetLine.TargetAdditionalTextObj.IsHidden = false;
+            }
         }
         
-        StopLossLine.IsHidden = false;
-        StopLossText.IsHidden = false;
+        if (StopLossLine != null)
+            StopLossLine.IsHidden = false;
+        
+        if (StopLossText != null)
+            StopLossText.IsHidden = false;
         
         if (InputShowAdditionalStopLossLabel)
             StopAdditionalText.IsHidden = false;
         
-        if (StopPriceLine != null)
-        {
+        if (StopPriceLine != null) 
             StopPriceLine.IsHidden = false;
+        
+        if (StopPriceText != null)
             StopPriceText.IsHidden = false;
-        }
     }
 
     protected virtual void OnStopPriceLineRemoved()
@@ -800,6 +844,8 @@ public class ChartLinesView : IChartLinesViewResources
 
     public CustomStyle CustomStyle => _resources.CustomStyle;
     public Color InputTradeButtonColor => _resources.InputTradeButtonColor;
+    public IAccount Account => _resources.Account;
+
     public Chart Chart => _resources.Chart;
     public Symbol Symbol => _resources.Symbol;
     public IServer Server => _resources.Server;
@@ -808,7 +854,7 @@ public class ChartLinesView : IChartLinesViewResources
     public Color InputEntryLineColor => _resources.InputEntryLineColor;
     public LineStyle InputEntryLineStyle => _resources.InputEntryLineStyle;
     public int InputEntryLineWidth => _resources.InputEntryLineWidth;
-    public bool InputShowLineLabels => _resources.InputShowLineLabels;
+    public bool InputShowMainLineLabels => _resources.InputShowMainLineLabels;
     public int IndexForLabelReference => _resources.IndexForLabelReference;
 
     public Color InputStopLossLineColor => _resources.InputStopLossLineColor;

@@ -29,7 +29,7 @@ public interface ISetupWindowResources
     //--
     bool InputShowMaxPositionSizeButton { get; }
     bool InputStartPanelMinimized { get; }
-    bool InputShowLineLabels { get; }
+    bool InputShowMainLineLabels { get; }
     bool InputHideEntryLineForInstantOrders { get; }
     Color InputEntryLineColor { get; }
     LineStyle InputEntryLineStyle { get; }
@@ -658,7 +658,7 @@ public sealed class SetupWindowView : Grid,
     public bool InputShowPipValue => _resources.InputShowPipValue;
     public bool InputShowMaxPositionSizeButton => _resources.InputShowMaxPositionSizeButton;
     public bool InputStartPanelMinimized => _resources.InputStartPanelMinimized;
-    public bool InputShowLineLabels => _resources.InputShowLineLabels;
+    public bool InputShowMainLineLabels => _resources.InputShowMainLineLabels;
     public bool InputHideEntryLineForInstantOrders => _resources.InputHideEntryLineForInstantOrders;
 
     public Color InputEntryLineColor => _resources.InputEntryLineColor;

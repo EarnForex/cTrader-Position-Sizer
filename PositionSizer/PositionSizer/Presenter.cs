@@ -15,6 +15,7 @@ public partial class PositionSizer
 
     public void StartPresenter()
     {
+        SetupWindowView.ChartLinesView.RemoveLines();
         SetupWindowView.WindowActiveChanged += SetupWindowViewOnWindowActiveChanged;
 
         #region MainViewSubscriptions
@@ -411,7 +412,16 @@ public partial class PositionSizer
 
     private void OnStopEvent(object sender, EventArgs e)
     {
-        SetupWindowView.ChartLinesView.RemoveLines();
+        if (!InputKeepLinesWhenRobotIsStopped)
+            SetupWindowView.ChartLinesView.RemoveLines();
+        else
+        {
+            foreach (var line in SetupWindowView.ChartLinesView.HorizontalLines)
+            {
+                line.IsInteractive = true;
+                line.IsHidden = false;
+            }
+        }
     }
     
     private void SetupWindowViewOnWindowActiveChanged(object sender, WindowActiveChangedEventArgs e)

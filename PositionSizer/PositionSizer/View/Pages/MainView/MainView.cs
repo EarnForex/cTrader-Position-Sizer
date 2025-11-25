@@ -60,7 +60,7 @@ public class MainView : Button, IMainViewResources
     private readonly Button _atrTimeFrameButton;
     private readonly Grid _takeProfitGrid;
     private readonly List<TakeProfitRowView> _tpViews = new();
-    private readonly TextBlock _riskUsdTextBlock;
+    private readonly TextBlock _riskCurrencyTextBlock;
     private readonly TextBlock _rewardCashTextBlock;
     private readonly TextBlock _rewardRiskTextBlock;
     private readonly Button _takeProfitButton;
@@ -448,14 +448,14 @@ public class MainView : Button, IMainViewResources
         //Risk (USD) TextBlock (Column 0-1)
         //Risk (USD) TextBox (Column 2)
         
-        _riskUsdTextBlock = MakeTextBlock($"Risk ({Account.Asset.Name})");
+        _riskCurrencyTextBlock = MakeTextBlock($"Risk ({Account.Asset.Name})");
         _riskCashTextBox = MakeTextBoxDouble(model.TradeSize.RiskInCurrency, 2, RiskCashTextBoxOnTextChanged);
         
         _riskCashResultTextBox = MakeTextBoxDouble(model.TradeSize.RiskInCurrency, 2, RiskCashTextBoxOnTextChanged);
         _riskCashResultTextBox.IsReadOnly = true;
 
         NewRow();
-        _grid.AddChild(_riskUsdTextBlock, _rowIndex, 0, 1, 2);
+        _grid.AddChild(_riskCurrencyTextBlock, _rowIndex, 0, 1, 2);
         _grid.AddChild(_riskCashTextBox, _rowIndex, 2);
         _grid.AddChild(_riskCashResultTextBox, _rowIndex, 3);
 
