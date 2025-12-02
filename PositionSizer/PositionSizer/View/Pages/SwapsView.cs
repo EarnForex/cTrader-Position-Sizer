@@ -11,6 +11,7 @@ public interface ISwapsViewResources
     IAccount Account { get; }
     CustomStyle CustomStyle { get; }
     bool InputDarkMode { get; }
+    double InputFallbackLotSize { get; }
 }
 
 public class SwapsView : Button, ISwapsViewResources
@@ -32,6 +33,10 @@ public class SwapsView : Button, ISwapsViewResources
         _grid.AddRows(9);
         Content = _grid;
         Width = 400;
+        
+        var lotSizeValue = Symbol.LotSize == 0 
+            ? InputFallbackLotSize
+            : Symbol.LotSize;
 
         var row = 0;
 
@@ -87,11 +92,11 @@ public class SwapsView : Button, ISwapsViewResources
         
         _grid.AddChild(dailyTextBlock, row, 0);
         
-        var longDailyTextBox = MakeTextBox((Symbol.SwapLong * Symbol.PipValue * Symbol.LotSize).ToString("F"));
+        var longDailyTextBox = MakeTextBox((Symbol.SwapLong * Symbol.PipValue * lotSizeValue).ToString("F"));
         
         _grid.AddChild(longDailyTextBox, row, 1);
         
-        var shortDailyTextBox = MakeTextBox((Symbol.SwapShort * Symbol.PipValue * Symbol.LotSize).ToString("F"));
+        var shortDailyTextBox = MakeTextBox((Symbol.SwapShort * Symbol.PipValue * lotSizeValue).ToString("F"));
         
         _grid.AddChild(shortDailyTextBox, row, 2);
         
@@ -120,11 +125,11 @@ public class SwapsView : Button, ISwapsViewResources
         
         _grid.AddChild(yearlyTextBlock, row, 0);
         
-        var longYearlyTextBox = MakeTextBox($"{Symbol.SwapLong * Symbol.PipValue * Symbol.LotSize * 360:F2}");
+        var longYearlyTextBox = MakeTextBox($"{Symbol.SwapLong * Symbol.PipValue * lotSizeValue * 360:F2}");
         
         _grid.AddChild(longYearlyTextBox, row, 1);
         
-        var shortYearlyTextBox = MakeTextBox($"{Symbol.SwapShort * Symbol.PipValue * Symbol.LotSize * 360:F2}");
+        var shortYearlyTextBox = MakeTextBox($"{Symbol.SwapShort * Symbol.PipValue * lotSizeValue * 360:F2}");
         
         _grid.AddChild(shortYearlyTextBox, row, 2);
         
@@ -248,4 +253,5 @@ public class SwapsView : Button, ISwapsViewResources
     public IAccount Account => _resources.Account;
     public CustomStyle CustomStyle => _resources.CustomStyle;
     public bool InputDarkMode => _resources.InputDarkMode;
+    public double InputFallbackLotSize => _resources.InputFallbackLotSize;
 }

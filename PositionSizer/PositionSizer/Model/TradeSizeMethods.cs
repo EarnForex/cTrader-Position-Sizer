@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using cAlgo.API;
 using cAlgo.API.Internals;
@@ -124,6 +125,8 @@ public partial class Model
     {
         // round-trip commission per unit volume in account currency
         // uses StandardCommission() per lot, then divides by lot size and doubles (entry + exit)
-        return 2.0 * StandardCommission() / Symbol.LotSize;
+        return Symbol.LotSize == 0 
+            ? 2.0 * StandardCommission() / InputFallbackLotSize
+            : 2.0 * StandardCommission() / Symbol.LotSize;
     }
 }

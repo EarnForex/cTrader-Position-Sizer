@@ -9,6 +9,7 @@ namespace cAlgo.Robots;
 
 public interface IModelResources
 {
+    double InputFallbackLotSize { get; }
     bool InputCalculateUnadjustedPositionSize { get; }
     bool InputSurpassBrokerMaxPositionSizeWithMultipleTrades { get; }
     //--
@@ -29,6 +30,7 @@ public partial class Model : IModel
     
     private IModelResources _resources;
 
+    private double InputFallbackLotSize => _resources.InputFallbackLotSize;
     private bool InputCalculateUnadjustedPositionSize => _resources.InputCalculateUnadjustedPositionSize;
     private bool InputSurpassBrokerMaxPositionSizeWithMultipleTrades => _resources.InputSurpassBrokerMaxPositionSizeWithMultipleTrades;
     private IAccount Account => _resources.Account;
@@ -257,7 +259,8 @@ public partial class Model : IModel
 
         if (Symbol.CommissionType == SymbolCommissionType.UsdPerMillionUsdVolume)
         {
-            var lotSizeOfBaseAssetInAccountCurrency = baseAsset.Convert(accountAsset, Symbol.LotSize);
+            var lotSize = Symbol.LotSize == 0 ? InputFallbackLotSize : Symbol.LotSize;
+            var lotSizeOfBaseAssetInAccountCurrency = baseAsset.Convert(accountAsset, lotSize);
             var commissionPerLotInAccountCurrency = Symbol.Commission / 1_000_000.0 * lotSizeOfBaseAssetInAccountCurrency;
 
             return commissionPerLotInAccountCurrency;

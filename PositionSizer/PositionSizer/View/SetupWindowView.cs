@@ -79,6 +79,7 @@ public interface ISetupWindowResources
     Color InputLongButtonColor { get; }
     Color InputShortButtonColor { get; }
     Color InputTradeButtonColor { get; }
+    double InputFallbackLotSize { get; }
 }
 
 public enum WindowActive
@@ -696,6 +697,7 @@ public sealed class SetupWindowView : Grid,
 
     public LocalStorage LocalStorage => _resources.LocalStorage;
     public string CleanBrokerName => _resources.CleanBrokerName;
+    public double InputFallbackLotSize => _resources.InputFallbackLotSize;
 
     private void OnHideShowClickEvent()
     {

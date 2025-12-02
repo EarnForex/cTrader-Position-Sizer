@@ -4,7 +4,7 @@
 //   WARNING: No warranty. This EA is offered "as is". Use at your own risk.
 //   Note: Pressing Shift+T will open a trade.
 //   
-//   Version 1.20
+//   Version 1.21
 //   Copyright 2024-2025, EarnForex.com
 //   https://www.earnforex.com/ctrader-robots/cTrader-Position-Sizer/
 // -------------------------------------------------------------------------------
@@ -34,7 +34,7 @@ public partial class PositionSizer : Robot,
     public event EventHandler TimerEvent;
     public event EventHandler StopEvent;
     public IModel Model { get; set; }
-    public const string Version = "v1.20";
+    public const string Version = "v1.21";
     public CustomStyle CustomStyle { get; private set; }
     public BreakEven BreakEven { get; private set; }
     public TrailingStop TrailingStop { get; private set; }
@@ -58,9 +58,8 @@ public partial class PositionSizer : Robot,
     {
         if (Symbol.LotSize == 0)
         {
-            var msgText = "This symbol reports a lot size of zero, which prevents the bot from operating correctly. Please select a symbol with a non-zero lot size or update the symbol's contract size and restart the bot.";
+            var msgText = $"This symbol reports zero lot size. Using the Fallback Lot Size value {InputFallbackLotSize}. Commission and swap calculation may be incorrect.";
             MessageBox.Show(msgText, "Warning!", MessageBoxButton.OK, MessageBoxImage.Warning);
-            Stop();
         }
         
         //System.Diagnostics.Debugger.Launch();

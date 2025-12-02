@@ -492,6 +492,9 @@ public partial class PositionSizer
     
     [Parameter("Keep Lines When Robot Is Stopped", DefaultValue = false, Group = "Miscellaneous")]
     public bool InputKeepLinesWhenRobotIsStopped { get; set; }
+
+    [Parameter("Fallback Lot Size", DefaultValue = 1, MinValue = 0.01, Step = 0.01, Group = "Miscellaneous")]
+    public double InputFallbackLotSize { get; set; }
     
     #endregion
     
