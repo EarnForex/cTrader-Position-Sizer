@@ -12,6 +12,7 @@ public partial class PositionSizer
 {
     private double _lastKnownMouseYPosition;
     private DateTime _oneSecondTimer;
+    private int _timerUpdateFailureCount;
 
     public void StartPresenter()
     {
@@ -137,7 +138,7 @@ public partial class PositionSizer
         #region RobotUpdates
 
         StopEvent += OnStopEvent;
-        Symbol.Tick += SymbolOnTick;
+        TickEvent += OnTickEvent;
         TimerEvent += OnTimerEvent;
 
         #endregion
@@ -161,8 +162,18 @@ public partial class PositionSizer
             return;
         
         _oneSecondTimer = Server.Time;
-        Model.UpdateAccountSizeValue(InputRoundingPositionSizeAndPotentialReward);
-        SetupWindowView.Update(Model);
+        try
+        {
+            Model.UpdateAccountSizeValue(InputRoundingPositionSizeAndPotentialReward);
+            SetupWindowView.Update(Model);
+        }
+        catch (Exception ex)
+        {
+            _timerUpdateFailureCount++;
+            Print($"[PositionSizer] Timer update failed ({_timerUpdateFailureCount}/4): {ex.Message}");
+            if (_timerUpdateFailureCount > 4)
+                throw;
+        }
     }
 
     private void ChartMouseDown(ChartMouseEventArgs obj)
@@ -388,13 +399,13 @@ public partial class PositionSizer
         return distribution;
     }
 
-    private void SymbolOnTick(SymbolTickEventArgs obj)
+    private void OnTickEvent(object sender, PositionSizerTickEventArgs e)
     {
-        if (double.IsNaN(Ask) || double.IsNaN(Bid))
+        if (double.IsNaN(e.Ask) || double.IsNaN(e.Bid))
             return;
-        
+
         SetupWindowView.UpdateSpread(Model);
-        
+
         if (SetupWindowView.ViewUsed == SetupWindowView.RiskView)
         {
             Model.UpdateReadOnlyValues();
@@ -406,8 +417,8 @@ public partial class PositionSizer
 
         if (Model.OrderType != OrderType.Instant)
             return;
-        
-        Model.UpdateEntryPrice(Model.TradeType == TradeType.Buy ? Ask : Bid, EntryPriceUpdateReason.TickUpdate);
+
+        Model.UpdateEntryPrice(Model.TradeType == TradeType.Buy ? e.Ask : e.Bid, EntryPriceUpdateReason.TickUpdate);
     }
 
     private void OnStopEvent(object sender, EventArgs e)

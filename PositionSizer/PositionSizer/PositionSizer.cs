@@ -4,8 +4,8 @@
 //   WARNING: No warranty. This EA is offered "as is". Use at your own risk.
 //   Note: Pressing Shift+T will open a trade.
 //   
-//   Version 1.21
-//   Copyright 2024-2025, EarnForex.com
+//   Version 1.22
+//   Copyright 2024-2026, EarnForex.com
 //   https://www.earnforex.com/ctrader-robots/cTrader-Position-Sizer/
 // -------------------------------------------------------------------------------
 
@@ -22,6 +22,20 @@ using PositionSizer.XTextBoxControl.ControlValue;
 
 namespace cAlgo.Robots;
 
+public class PositionSizerTickEventArgs : EventArgs
+{
+    public double Bid { get; }
+    public double Ask { get; }
+    public DateTime Time { get; }
+
+    public PositionSizerTickEventArgs(double bid, double ask, DateTime time)
+    {
+        Bid = bid;
+        Ask = ask;
+        Time = time;
+    }
+}
+
 [Robot(AccessRights = AccessRights.None)]
 public partial class PositionSizer : Robot,
     ISetupWindowResources,
@@ -33,8 +47,10 @@ public partial class PositionSizer : Robot,
     public SetupWindowView SetupWindowView { get; private set; }
     public event EventHandler TimerEvent;
     public event EventHandler StopEvent;
+    /// <summary>Fired from OnTick() so tick updates keep working after PC sleep/wake (Symbol.Tick does not).</summary>
+    public event EventHandler<PositionSizerTickEventArgs> TickEvent;
     public IModel Model { get; set; }
-    public const string Version = "v1.21";
+    public const string Version = "v1.22";
     public CustomStyle CustomStyle { get; private set; }
     public BreakEven BreakEven { get; private set; }
     public TrailingStop TrailingStop { get; private set; }
@@ -77,6 +93,7 @@ public partial class PositionSizer : Robot,
 
     protected override void OnTick()
     {
+        TickEvent?.Invoke(this, new PositionSizerTickEventArgs(Symbol.Bid, Symbol.Ask, Server.Time));
         _riskManagers.ForEach(rm => rm.Check());
     }
 
