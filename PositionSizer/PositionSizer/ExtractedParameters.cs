@@ -10,6 +10,7 @@ public class ExtractedParameters
     public bool InputShowAdditionalTpLabel { get; set; }
     public bool InputShowAdditionalEntryLabel { get; set; }
     public bool InputHideAccountSize { get; set; }
+    public bool InputHideMoneyAndPipsValues { get; set; }
     public bool InputShowPipValue { get; set; }
     public bool InputShowMaxPositionSizeButton { get; set; }
     public bool InputStartPanelMinimized { get; set; }
@@ -17,8 +18,9 @@ public class ExtractedParameters
     public bool InputShowMaxParametersOnTradingTab { get; set; }
     public bool InputShowTradingFusesOnTradingTab { get; set; }
     public bool InputShowCheckBoxesOnTradingTab { get; set; }
-    public AdditionalTradeButtons InputAdditionalTradeButtons { get; set; }
     public bool InputHideEntryLineForInstantOrders { get; set; }
+    public bool InputShowAdditionalMarginSettings { get; set; }
+    public AdditionalTradeButtons InputAdditionalTradeButtons { get; set; }
     public SerializableColor InputStopLossLabelColor { get; set; }
     public SerializableColor InputTpLabelColor { get; set; }
     public SerializableColor InputStopPriceLabelColor { get; set; }
@@ -61,6 +63,8 @@ public class ExtractedParameters
     public IncludeSymbolsMode InputIncludeSymbolsMode { get; set; }
     public IncludeDirectionsMode InputIncludeDirectionsMode { get; set; }
     public double InputCustomLeverage { get; set; }
+    public MarginUtilizationBase InputDefaultMarginUtilizationBase { get; set; }
+    public double InputDefaultMubStartingBalance { get; set; }
     public string InputLabel { get; set; }
     public string InputCommentary { get; set; }
     public bool InputAutoSuffix { get; set; }
@@ -69,6 +73,7 @@ public class ExtractedParameters
     public double InputMaxSpreadPips { get; set; }
     public double InputMaxEntryStopLossDistancePips { get; set; }
     public double InputMinEntryStopLossDistancePips { get; set; }
+    public double InputMaxMarginPercentage { get; set; }
     public double InputMaxPositionSizeTotalForTradingTab { get; set; }
     public double InputMaxPositionSizePerSymbolForTradingTab { get; set; }
     public bool InputSubtractOpv { get; set; }
@@ -86,8 +91,12 @@ public class ExtractedParameters
     public int InputMaxNumberOfTradesPerSymbol { get; set; }
     public double InputMaxRiskTotal { get; set; }
     public double InputMaxRiskPerSymbol { get; set; }
+    public double InputMaxMarginPctTotal { get; set; }
+    public double InputMaxMarginPctPerSymbol { get; set; }
     public bool InputStopLossDistancePipsInsteadOfLevel { get; set; }
     public bool InputTakeProfitDistancePipsInsteadOfLevel { get; set; }
+    public bool InputStopLimitDistanceInPips { get; set; }
+    public double InputDefaultStopLimitDistance { get; set; }
     public string InputHotkeyExecuteTrade { get; set; }
     public string InputHotkeySwitchOrderType { get; set; }
     public string InputHotkeySwitchEntryDirection { get; set; }
@@ -98,6 +107,7 @@ public class ExtractedParameters
     public string InputMinimizeMaximizeHotkeyPanel { get; set; }
     public string InputHotkeySwitchStopLossPointsLevel { get; set; }
     public string InputSwitchTpPointsLevelHotkey { get; set; }
+    public string InputHotkeySwitchStopLimitPipsLevel { get; set; }
     public double InputTakeProfitMultiplierForStopLossValue { get; set; }
     public bool InputUseCommissionToSetTpDistance { get; set; }
     public ShowSpreadMode InputShowSpread { get; set; }

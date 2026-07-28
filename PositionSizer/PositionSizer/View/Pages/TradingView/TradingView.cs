@@ -15,6 +15,7 @@ public interface ITradingViewResources
     bool InputShowMaxParametersOnTradingTab { get; }
     bool InputShowTradingFusesOnTradingTab { get; }
     bool InputShowCheckBoxesOnTradingTab { get; }
+    bool InputShowAdditionalMarginSettings { get; }
     void Print(object obj);
     XTextBoxDouble MakeTextBoxDouble(double defaultValue, int digits, EventHandler<ControlValueUpdatedEventArgs<double>> valueUpdatedHandler);
     XTextBoxDoubleNumeric MakeTextBoxDoubleNumeric(double defaultValue, int digits, double changeByFactor, EventHandler<ControlValueUpdatedEventArgs<double>> valueUpdatedHandler);
@@ -44,6 +45,9 @@ public sealed class TradingView : Button, ITradingViewResources, ITpDistribution
     public event EventHandler<MaxVolumePerSymbolValueChangedEventArgs> MaxVolumePerSymbolValueChanged;
     public event EventHandler<MaxRiskTotalValueChangedEventArgs> MaxRiskTotalValueChanged;
     public event EventHandler<MaxRiskPerSymbolValueChangedEventArgs> MaxRiskPerSymbolValueChanged;
+    public event EventHandler<MaxMarginPctTotalValueChangedEventArgs> MaxMarginPctTotalValueChanged;
+    public event EventHandler<MaxMarginPctPerSymbolValueChangedEventArgs> MaxMarginPctPerSymbolValueChanged;
+    public event EventHandler<MaxMarginPercentageValueChangedEventArgs> MaxMarginPercentageValueChanged;
     public event EventHandler<DisableTradingWhenLinesHiddenEventArgs> DisableTradingWhenLinesHiddenCheckBoxChanged;
     public event EventHandler<MaxSlippageValueChangedEventArgs> MaxSlippageValueChanged;
     public event EventHandler<MaxSpreadValueSpreadEventArgs> MaxSpreadValueChanged;
@@ -73,12 +77,15 @@ public sealed class TradingView : Button, ITradingViewResources, ITpDistribution
     private readonly XTextBoxDouble _maxVolumePerSymbolTextBox;
     private readonly XTextBoxDouble _maxRiskTotalTextBox;
     private readonly XTextBoxDouble _maxRiskPerSymbolTextBox;
+    private readonly XTextBoxDouble _maxMarginPctTotalTextBox;
+    private readonly XTextBoxDouble _maxMarginPctPerSymbolTextBox;
     private readonly CheckBox _disableTradingCheckBox;
     private readonly XTextBoxDouble _maxSlippageTextBox;
     private readonly XTextBoxDouble _maxSpreadTextBox;
     private readonly XTextBoxDouble _maxEntrySlDistanceTextBox;
     private readonly XTextBoxDouble _minEntrySlDistanceTextBox;
     private readonly XTextBoxDouble _maxRiskPercentageTextBox;
+    private readonly XTextBoxDouble _maxMarginPercentageTextBox;
     private readonly CheckBox _subtractOpenPositionsVolumeCheckBox;
     private readonly CheckBox _subtractPendingOrdersVolumeCheckBox;
     private readonly CheckBox _doNotApplyStopLossCheckBox;
@@ -228,6 +235,31 @@ public sealed class TradingView : Button, ITradingViewResources, ITpDistribution
             _grid.AddChild(_maxRiskTotalTextBox, _rowIndex, 2);
             _grid.AddChild(maxRiskPerSymbolTextBlock, _rowIndex, 3);
             _grid.AddChild(_maxRiskPerSymbolTextBox, _rowIndex, 4);
+
+            if (InputShowAdditionalMarginSettings)
+            {
+                var marginUtilizationTextBlock = MakeTextBlock("Margin util., % Total");
+                _maxMarginPctTotalTextBox = MakeTextBoxDouble(model.MaxMarginPctTotal, 2, MaxMarginPctTotalTextBoxOnTextChanged);
+
+                var marginUtilizationPerSymbolTextBlock = MakeTextBlock("Per Symbol");
+                _maxMarginPctPerSymbolTextBox = MakeTextBoxDouble(model.MaxMarginPctPerSymbol, 2, MaxMarginPctPerSymbolTextBoxOnTextChanged);
+
+                NewRow();
+                _grid.AddChild(marginUtilizationTextBlock, _rowIndex, 0, 1, 2);
+                _grid.AddChild(_maxMarginPctTotalTextBox, _rowIndex, 2);
+                _grid.AddChild(marginUtilizationPerSymbolTextBlock, _rowIndex, 3);
+                _grid.AddChild(_maxMarginPctPerSymbolTextBox, _rowIndex, 4);
+            }
+            else
+            {
+                _maxMarginPctTotalTextBox = null;
+                _maxMarginPctPerSymbolTextBox = null;
+            }
+        }
+        else
+        {
+            _maxMarginPctTotalTextBox = null;
+            _maxMarginPctPerSymbolTextBox = null;
         }
 
         //--ROW 6
@@ -307,6 +339,24 @@ public sealed class TradingView : Button, ITradingViewResources, ITpDistribution
             NewRow();
             _grid.AddChild(maxRiskPercentageTextBlock, _rowIndex, 0, 1, 2);
             _grid.AddChild(_maxRiskPercentageTextBox, _rowIndex, 2);
+
+            if (InputShowAdditionalMarginSettings)
+            {
+                var maxMarginPercentageTextBlock = MakeTextBlock("Max Margin %");
+                _maxMarginPercentageTextBox = MakeTextBoxDouble(model.MaxMarginPercentage, 2, MaxMarginPercentageTextBoxOnTextChanged);
+
+                NewRow();
+                _grid.AddChild(maxMarginPercentageTextBlock, _rowIndex, 0, 1, 2);
+                _grid.AddChild(_maxMarginPercentageTextBox, _rowIndex, 2);
+            }
+            else
+            {
+                _maxMarginPercentageTextBox = null;
+            }
+        }
+        else
+        {
+            _maxMarginPercentageTextBox = null;
         }
 
         if (InputShowCheckBoxesOnTradingTab)
@@ -406,7 +456,13 @@ public sealed class TradingView : Button, ITradingViewResources, ITpDistribution
             _maxVolumeTotalTextBox.SetValueWithoutTriggeringEvent(model.MaxLotsTotal);
             _maxVolumePerSymbolTextBox.SetValueWithoutTriggeringEvent(model.MaxLotsPerSymbol);
             _maxRiskTotalTextBox.SetValueWithoutTriggeringEvent(model.MaxRiskPctTotal);
-            _maxRiskPerSymbolTextBox.SetValueWithoutTriggeringEvent(model.MaxRiskPctPerSymbol);   
+            _maxRiskPerSymbolTextBox.SetValueWithoutTriggeringEvent(model.MaxRiskPctPerSymbol);
+
+            if (InputShowAdditionalMarginSettings)
+            {
+                _maxMarginPctTotalTextBox.SetValueWithoutTriggeringEvent(model.MaxMarginPctTotal);
+                _maxMarginPctPerSymbolTextBox.SetValueWithoutTriggeringEvent(model.MaxMarginPctPerSymbol);
+            }
         }
 
         if (InputShowCheckBoxesOnTradingTab)
@@ -426,6 +482,9 @@ public sealed class TradingView : Button, ITradingViewResources, ITpDistribution
             _maxEntrySlDistanceTextBox.SetValueWithoutTriggeringEvent(model.MaxEntryStopLossDistancePips);
             _minEntrySlDistanceTextBox.SetValueWithoutTriggeringEvent(model.MinEntryStopLossDistancePips);   
             _maxRiskPercentageTextBox.SetValueWithoutTriggeringEvent(model.MaxRiskPercentage);
+
+            if (InputShowAdditionalMarginSettings)
+                _maxMarginPercentageTextBox.SetValueWithoutTriggeringEvent(model.MaxMarginPercentage);
         }
         
         _askForConfirmationCheckBox.IsChecked = model.AskForConfirmation;
@@ -497,6 +556,11 @@ public sealed class TradingView : Button, ITradingViewResources, ITpDistribution
     {
         MaxRiskPercentageValueChanged?.Invoke(this, new MaxRiskPercentageValueChangedEventArgs(e.Value));
     }
+
+    private void MaxMarginPercentageTextBoxOnTextChanged(object sender, ControlValueUpdatedEventArgs<double> e)
+    {
+        MaxMarginPercentageValueChanged?.Invoke(this, new MaxMarginPercentageValueChangedEventArgs(e.Value));
+    }
     
     private void MaxSpreadTextBoxOnTextChanged(object sender, ControlValueUpdatedEventArgs<double> e)
     {
@@ -526,6 +590,16 @@ public sealed class TradingView : Button, ITradingViewResources, ITpDistribution
     private void MaxRiskTotalTextBoxOnTextChanged(object sender, ControlValueUpdatedEventArgs<double> e)
     {
         MaxRiskTotalValueChanged?.Invoke(this, new MaxRiskTotalValueChangedEventArgs(e.Value));
+    }
+
+    private void MaxMarginPctTotalTextBoxOnTextChanged(object sender, ControlValueUpdatedEventArgs<double> e)
+    {
+        MaxMarginPctTotalValueChanged?.Invoke(this, new MaxMarginPctTotalValueChangedEventArgs(e.Value));
+    }
+
+    private void MaxMarginPctPerSymbolTextBoxOnTextChanged(object sender, ControlValueUpdatedEventArgs<double> e)
+    {
+        MaxMarginPctPerSymbolValueChanged?.Invoke(this, new MaxMarginPctPerSymbolValueChangedEventArgs(e.Value));
     }
     
     private void MaxVolumePerSymbolTextBoxOnTextChanged(object sender, ControlValueUpdatedEventArgs<double> e)
@@ -628,6 +702,7 @@ public sealed class TradingView : Button, ITradingViewResources, ITpDistribution
     public bool InputShowMaxParametersOnTradingTab => _resources.InputShowMaxParametersOnTradingTab;
     public bool InputShowTradingFusesOnTradingTab => _resources.InputShowTradingFusesOnTradingTab;
     public bool InputShowCheckBoxesOnTradingTab => _resources.InputShowCheckBoxesOnTradingTab;
+    public bool InputShowAdditionalMarginSettings => _resources.InputShowAdditionalMarginSettings;
     public void Print(object obj)
     {
         _resources.Print(obj);
@@ -661,6 +736,13 @@ public sealed class TradingView : Button, ITradingViewResources, ITpDistribution
     public bool InputDarkMode => _resources.InputDarkMode;
     public Color InputTradeButtonColor => _resources.InputTradeButtonColor;
 
+    private XTextBoxDouble MakeReadOnlyDoubleTextBox(double defaultValue, int digits)
+    {
+        var textBox = MakeTextBoxDouble(defaultValue, digits, (_, _) => { });
+        textBox.IsReadOnly = true;
+        return textBox;
+    }
+
     public void Dispose()
     {
         //unsubscribe from all events
@@ -681,6 +763,12 @@ public sealed class TradingView : Button, ITradingViewResources, ITpDistribution
             _maxVolumePerSymbolTextBox.ValueUpdated -= MaxVolumePerSymbolTextBoxOnTextChanged;
             _maxRiskTotalTextBox.ValueUpdated -= MaxRiskTotalTextBoxOnTextChanged;
             _maxRiskPerSymbolTextBox.ValueUpdated -= MaxRiskPerSymbolTextBoxOnTextChanged;
+
+            if (InputShowAdditionalMarginSettings)
+            {
+                _maxMarginPctTotalTextBox.ValueUpdated -= MaxMarginPctTotalTextBoxOnTextChanged;
+                _maxMarginPctPerSymbolTextBox.ValueUpdated -= MaxMarginPctPerSymbolTextBoxOnTextChanged;
+            }
         }
 
         if (InputShowTradingFusesOnTradingTab)
@@ -690,6 +778,9 @@ public sealed class TradingView : Button, ITradingViewResources, ITpDistribution
             _minEntrySlDistanceTextBox.ValueUpdated -= MinEntrySlDistanceTextBoxOnTextChanged;
             _maxEntrySlDistanceTextBox.ValueUpdated -= MaxEntrySlDistanceTextBoxOnTextChanged;
             _maxRiskPercentageTextBox.ValueUpdated -= MaxRiskPercentageTextBoxOnTextChanged;
+
+            if (InputShowAdditionalMarginSettings)
+                _maxMarginPercentageTextBox.ValueUpdated -= MaxMarginPercentageTextBoxOnTextChanged;
         }
         
         _disableTradingCheckBox.Checked -= DisableTradingCheckBoxOnChecked;
@@ -730,6 +821,12 @@ public sealed class TradingView : Button, ITradingViewResources, ITpDistribution
             _maxVolumePerSymbolTextBox.TryValidateText();
             _maxRiskTotalTextBox.TryValidateText();
             _maxRiskPerSymbolTextBox.TryValidateText();
+
+            if (InputShowAdditionalMarginSettings)
+            {
+                _maxMarginPctTotalTextBox.TryValidateText();
+                _maxMarginPctPerSymbolTextBox.TryValidateText();
+            }
         }
 
         if (InputShowTradingFusesOnTradingTab)
@@ -739,6 +836,9 @@ public sealed class TradingView : Button, ITradingViewResources, ITpDistribution
             _minEntrySlDistanceTextBox.TryValidateText();
             _maxEntrySlDistanceTextBox.TryValidateText();
             _maxRiskPercentageTextBox.TryValidateText();
+
+            if (InputShowAdditionalMarginSettings)
+                _maxMarginPercentageTextBox.TryValidateText();
         }
         
         foreach (var tpRow in TpDistribution.TpRows)
@@ -829,6 +929,16 @@ public class MaxRiskPercentageValueChangedEventArgs : EventArgs
     }
 }
 
+public class MaxMarginPercentageValueChangedEventArgs : EventArgs
+{
+    public double MaxMarginPercentage { get; }
+
+    public MaxMarginPercentageValueChangedEventArgs(double maxMarginPercentage)
+    {
+        MaxMarginPercentage = maxMarginPercentage;
+    }
+}
+
 public class MaxSpreadValueSpreadEventArgs : EventArgs
 {
     public double MaxSpreadPips { get; }
@@ -876,6 +986,26 @@ public class MaxRiskTotalValueChangedEventArgs : EventArgs
     public MaxRiskTotalValueChangedEventArgs(double maxRiskTotal)
     {
         MaxRiskTotal = maxRiskTotal;
+    }
+}
+
+public class MaxMarginPctTotalValueChangedEventArgs : EventArgs
+{
+    public double MaxMarginPctTotal { get; }
+
+    public MaxMarginPctTotalValueChangedEventArgs(double maxMarginPctTotal)
+    {
+        MaxMarginPctTotal = maxMarginPctTotal;
+    }
+}
+
+public class MaxMarginPctPerSymbolValueChangedEventArgs : EventArgs
+{
+    public double MaxMarginPctPerSymbol { get; }
+
+    public MaxMarginPctPerSymbolValueChangedEventArgs(double maxMarginPctPerSymbol)
+    {
+        MaxMarginPctPerSymbol = maxMarginPctPerSymbol;
     }
 }
 

@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Reflection;
 using cAlgo.API;
+using cAlgo.API.Internals;
 
 namespace cAlgo.Robots.Tools;
 
@@ -63,6 +64,66 @@ public static class BotTools
         return (symbol.AmountRisked(position.VolumeInUnits, position.StopLossPips()) / equity) * 100.0;
     }
     
+    /// <summary>
+    /// Pip value in account currency for the given position size.
+    /// Uses a linear rate from min-lot <see cref="Symbol.AmountRisked"/> so sub-cent values scale consistently.
+    /// </summary>
+    public static double GetPositionPipValue(this Symbol symbol, double lots, double volumeInUnits)
+    {
+        if (lots <= 0 && volumeInUnits <= 0)
+            return 0;
+
+        var volume = volumeInUnits > 0
+            ? volumeInUnits
+            : symbol.QuantityToVolumeInUnits(lots);
+
+        if (volume <= 0)
+            return 0;
+
+        var normalizedVolume = symbol.NormalizeVolumeInUnits(volume, RoundingMode.ToNearest);
+
+        var refVolume = symbol.VolumeInUnitsMin;
+        if (refVolume > 0)
+        {
+            var pipAtRef = symbol.AmountRisked(refVolume, 1);
+            if (pipAtRef > 0)
+                return pipAtRef * normalizedVolume / refVolume;
+        }
+
+        if (symbol.PipValue > 0)
+        {
+            var lotsNormalized = symbol.VolumeInUnitsToQuantity(normalizedVolume);
+            return symbol.PipValue * lotsNormalized;
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Rounds to N significant figures with a minimum decimal-place floor (MT5 Position Sizer parity).
+    /// </summary>
+    public static double RoundToSignificant(double value, int digits = 2, int minDecimals = 2)
+    {
+        if (value == 0.0 || digits <= 0)
+            return 0;
+
+        var absValue = Math.Abs(value);
+        var power = (int)Math.Floor(Math.Log10(absValue));
+
+        // Guard against Log10 floating-point error near exact powers of ten.
+        if (absValue >= Math.Pow(10.0, power + 1))
+            power++;
+        else if (absValue < Math.Pow(10.0, power))
+            power--;
+
+        var decimals = digits - 1 - power;
+        if (decimals < minDecimals)
+            decimals = minDecimals;
+
+        var scale = Math.Pow(10.0, decimals);
+        return Math.Round(value * scale) / scale;
+    }
+
     public static int CountDecimals(double value)
     {
         if (value == 0)

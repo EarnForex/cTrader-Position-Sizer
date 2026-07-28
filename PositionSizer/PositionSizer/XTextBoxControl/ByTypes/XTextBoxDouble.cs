@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using cAlgo.Robots.Tools;
 using PositionSizer.XTextBoxControl.ControlValue;
 
 namespace PositionSizer.XTextBoxControl.ByTypes;
@@ -11,6 +12,8 @@ public class XTextBoxDouble : XTextBox<double>
 {
     private readonly int _digits;
     private readonly double _tolerance;
+
+    public bool UseAdaptiveDecimalPlaces { get; set; }
 
     public XTextBoxDouble(double defaultValue, int digits) : base(defaultValue)
     {
@@ -59,9 +62,32 @@ public class XTextBoxDouble : XTextBox<double>
         UpdateTextOfControls(e.Value);
     }
 
+    public void SyncDisplayFromValue()
+    {
+        UpdateTextOfControls(ControlValue.Value);
+    }
+
+    public new void SetValueWithoutTriggeringEvent(double value)
+    {
+        ControlValue.SetValueWithoutTriggeringEvent(value);
+        UpdateTextOfControls(value);
+    }
+
+    private int GetDisplayDecimals(double value)
+    {
+        if (!UseAdaptiveDecimalPlaces)
+            return _digits;
+
+        if (value == 0)
+            return 0;
+
+        var decimals = BotTools.CountDecimals(value);
+        return Math.Max(decimals, _digits);
+    }
+
     protected override void OnTextUpdatedAndValid(object sender, TextUpdatedEventArgs<double> e)
     {
-        TextBox.Text = e.Value.ToString($"F{_digits}");
+        TextBox.Text = e.Value.ToString($"F{GetDisplayDecimals(e.Value)}");
         Button.Text = TextBox.Text;
         Button.IsVisible = true;
         if (UseEditButton)
@@ -72,7 +98,7 @@ public class XTextBoxDouble : XTextBox<double>
 
     protected sealed override void UpdateTextOfControls(double value)
     {
-        var text = value.ToString($"F{_digits}");
+        var text = value.ToString($"F{GetDisplayDecimals(value)}");
 
         Button.Text = text;
 

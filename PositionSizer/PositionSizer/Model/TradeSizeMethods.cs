@@ -16,9 +16,9 @@ public partial class Model
     {
         TradeSize.Lots = lots;
         TradeSize.LastRiskValueChanged = LastRiskValueChanged.LotSize;
-        TradeSize.RiskInCurrency = Symbol.AmountRisked(TradeSize.Volume, StopLoss.Pips) + CommissionFromVolume();
+        TradeSize.RiskInCurrency = Symbol.AmountRisked(TradeSize.Volume, RealStopLossPips) + CommissionFromVolume();
         TradeSize.RiskPercentage = TradeSize.RiskInCurrency / AccountSize.Value * 100.0;
-        TradeSize.RewardInCurrency = TakeProfits.List[0].Pips == 0 ? 0 : TakeProfits.List.Sum(x => Symbol.AmountRisked(TradeSize.Volume * x.Distribution / 100.0, x.Pips));
+        TradeSize.RewardInCurrency = GrossRewardInCurrency();
         TradeSize.RewardRiskRatio = TradeSize.RewardInCurrency / TradeSize.RiskInCurrency;
 
         TradeSize.IsLotsValueInvalid = TradeSize.Lots > MaxPositionSizeByMargin;
@@ -36,20 +36,21 @@ public partial class Model
         TradeSize.RiskPercentage = TradeSize.RiskInCurrency / AccountSize.Value * 100.0;
         // Include commission in per-unit risk when sizing by money risk
         var normalize = !InputSurpassBrokerMaxPositionSizeWithMultipleTrades && !InputCalculateUnadjustedPositionSize;
-        var perUnitRisk = StopLoss.Pips *Symbol.PipValue + CommissionPerUnitVolume();
+        var perUnitRisk = RealStopLossPips * Symbol.PipValue + CommissionPerUnitVolume();
         var volumeUnits = TradeSize.RiskInCurrency / perUnitRisk;
         var volumeUnitsFinal = normalize ? Symbol.NormalizeVolumeInUnits(volumeUnits, roundingMode) : volumeUnits;
         TradeSize.Lots = Symbol.VolumeInUnitsToQuantity(volumeUnitsFinal);
         
-        TradeSize.RewardInCurrency = GetRewardInCurrencyUsingRiskPercentage(TradeSize.RiskPercentage);
+        // Gross reward (before commission); the Result reward below nets out one round-trip commission.
+        TradeSize.RewardInCurrency = GrossRewardInCurrency();
         TradeSize.RewardRiskRatio = TradeSize.RewardInCurrency / TradeSize.RiskInCurrency;
         
         TradeSize.IsLotsValueInvalid = TradeSize.Lots > MaxPositionSizeByMargin;
         
         // Results should reflect actuals including commission
-        TradeSize.RiskInCurrencyResult = Symbol.AmountRisked(TradeSize.Volume, StopLoss.Pips) + CommissionFromVolume();
+        TradeSize.RiskInCurrencyResult = Symbol.AmountRisked(TradeSize.Volume, RealStopLossPips) + CommissionFromVolume();
         TradeSize.RiskPercentageResult = TradeSize.RiskInCurrencyResult / AccountSize.Value * 100.0;
-        TradeSize.RewardCurrencyResult = TakeProfits.List[0].Pips == 0 ? 0 : TakeProfits.List.Sum(x => Symbol.AmountRisked(Symbol.NormalizeVolumeInUnits(TradeSize.Volume * x.Distribution / 100.0, roundingMode), x.Pips)) - CommissionFromVolume();
+        TradeSize.RewardCurrencyResult = TakeProfits.List[0].Pips == 0 ? 0 : TakeProfits.List.Select((x, i) => Symbol.AmountRisked(Symbol.NormalizeVolumeInUnits(TradeSize.Volume * x.Distribution / 100.0, roundingMode), RealTakeProfitPips(i))).Sum() - CommissionFromVolume();
         TradeSize.RewardRiskRatioResult = TradeSize.RewardCurrencyResult / TradeSize.RiskInCurrencyResult;
     }
 
@@ -62,20 +63,21 @@ public partial class Model
         var normalize = !InputSurpassBrokerMaxPositionSizeWithMultipleTrades && !InputCalculateUnadjustedPositionSize;
         // Include commission in per-unit risk when sizing by risk %
         var moneyRiskTarget = AccountSize.Value * TradeSize.RiskPercentage / 100.0;
-        var perUnitRisk = StopLoss.Pips * Symbol.PipValue + CommissionPerUnitVolume();
+        var perUnitRisk = RealStopLossPips * Symbol.PipValue + CommissionPerUnitVolume();
         var volumeUnits = moneyRiskTarget / perUnitRisk;
         var volumeUnitsFinal = normalize ? Symbol.NormalizeVolumeInUnits(volumeUnits, roundingMode) : volumeUnits;
         TradeSize.Lots = Symbol.VolumeInUnitsToQuantity(volumeUnitsFinal);
         TradeSize.RiskInCurrency = moneyRiskTarget;
-        TradeSize.RewardInCurrency = GetRewardInCurrencyUsingRiskPercentage(riskPercentage);
+        // Gross reward (before commission); the Result reward below nets out one round-trip commission.
+        TradeSize.RewardInCurrency = GrossRewardInCurrency();
         TradeSize.RewardRiskRatio = TradeSize.RewardInCurrency / TradeSize.RiskInCurrency;
         
         TradeSize.IsLotsValueInvalid = TradeSize.Lots > MaxPositionSizeByMargin;
         
         // Results should reflect actuals including commission
-        TradeSize.RiskInCurrencyResult = Symbol.AmountRisked(TradeSize.Volume, StopLoss.Pips) + CommissionFromVolume();
+        TradeSize.RiskInCurrencyResult = Symbol.AmountRisked(TradeSize.Volume, RealStopLossPips) + CommissionFromVolume();
         TradeSize.RiskPercentageResult = TradeSize.RiskInCurrencyResult / AccountSize.Value * 100.0;
-        TradeSize.RewardCurrencyResult = TakeProfits.List[0].Pips == 0 ? 0 : TakeProfits.List.Sum(x => Symbol.AmountRisked(Symbol.NormalizeVolumeInUnits(TradeSize.Volume * x.Distribution / 100.0, roundingMode), x.Pips)) - CommissionFromVolume();
+        TradeSize.RewardCurrencyResult = TakeProfits.List[0].Pips == 0 ? 0 : TakeProfits.List.Select((x, i) => Symbol.AmountRisked(Symbol.NormalizeVolumeInUnits(TradeSize.Volume * x.Distribution / 100.0, roundingMode), RealTakeProfitPips(i))).Sum() - CommissionFromVolume();
         TradeSize.RewardRiskRatioResult = TradeSize.RewardCurrencyResult / TradeSize.RiskInCurrencyResult;
     }
 
@@ -103,22 +105,21 @@ public partial class Model
         }
     }
 
-    private double GetRewardInCurrencyUsingRiskPercentage(double riskPercentage)
+    /// <summary>
+    /// Gross reward (before commission) for the current trade size across all take-profit levels.
+    /// Uses <see cref="RealTakeProfitPips"/> so it tracks the spread-adjusted TP that will actually be placed.
+    /// This must NOT include commission: the "Result" reward derives from this and nets out one round-trip
+    /// commission. Deriving the input reward from the commission-inclusive risk instead would make commission
+    /// appear to be deducted twice from the reward.
+    /// </summary>
+    private double GrossRewardInCurrency()
     {
         if (TakeProfits.List[0].Pips == 0)
             return 0.0;
-        
-        var rInCurrency = 0.0;
 
-        foreach (var t in TakeProfits.List)
-        {
-            //if with 20 pips of SL I risk 1%, then with 40 pips of TP I get a reward of 2%
-            var proportion = t.Pips / StopLoss.Pips;
-
-            rInCurrency += AccountSize.Value * riskPercentage / 100.0 * proportion * t.Distribution / 100.0;
-        }
-
-        return rInCurrency;
+        return TakeProfits.List
+            .Select((tp, i) => Symbol.AmountRisked(TradeSize.Volume * tp.Distribution / 100.0, RealTakeProfitPips(i)))
+            .Sum();
     }
 
     private double CommissionPerUnitVolume()

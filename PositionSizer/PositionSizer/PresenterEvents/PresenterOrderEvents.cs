@@ -12,6 +12,7 @@ public partial class PositionSizer
         
         Model.UpdateMarginValues(AssetConverter, InputRoundingPositionSizeAndPotentialReward);
         SetupWindowView.MarginView.Update(Model);
+        SetupWindowView.TradingView.UpdateValues(Model);
     }
 
     private void PositionsOnClosed(PositionClosedEventArgs obj)
@@ -43,6 +44,7 @@ public partial class PositionSizer
         SetupWindowView.RiskView.Update(Model);
         Model.UpdateMarginValues(AssetConverter, InputRoundingPositionSizeAndPotentialReward);
         SetupWindowView.MarginView.Update(Model);
+        SetupWindowView.TradingView.UpdateValues(Model);
     }
 
     private void PositionsOnModified(PositionModifiedEventArgs obj)
@@ -75,6 +77,7 @@ public partial class PositionSizer
         
         Model.UpdateMarginValues(AssetConverter, InputRoundingPositionSizeAndPotentialReward);
         SetupWindowView.MarginView.Update(Model);
+        SetupWindowView.TradingView.UpdateValues(Model);
     }
 
     private void PendingOrdersOnCreated(PendingOrderCreatedEventArgs obj)

@@ -1,5 +1,6 @@
 using cAlgo.API;
 using cAlgo.API.Internals;
+using PositionSizer.XTextBoxControl.ControlValue;
 
 namespace cAlgo.Robots;
 
@@ -11,6 +12,22 @@ public partial class PositionSizer
 
         Model.UpdateMarginValues(AssetConverter, InputRoundingPositionSizeAndPotentialReward);
         SetupWindowView.MarginView.Update(Model);
+    }
+
+    private void MarginViewOnMarginUtilizationBaseChanged(object sender, MarginUtilizationBaseChangedEventArgs e)
+    {
+        Model.MarginUtilizationBase = e.Base;
+
+        Model.UpdateMarginUtilization();
+        SetupWindowView.Update(Model);
+    }
+
+    private void MarginViewOnMubStartingBalanceChanged(object sender, ControlValueUpdatedEventArgs<double> e)
+    {
+        Model.MubStartingBalance = e.Value;
+
+        Model.UpdateMarginUtilization();
+        SetupWindowView.Update(Model);
     }
 
     private void MarginViewAreaClicked(ButtonClickEventArgs obj)

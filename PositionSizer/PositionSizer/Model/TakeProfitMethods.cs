@@ -34,7 +34,7 @@ public partial class Model
         {
             UpdateTakeProfitPipsLockedOnStopLoss();
         }
-        else
+        else if (TakeProfits.Mode == TargetMode.Price)
         {
             foreach (var takeProfit in TakeProfits.List)
             {
@@ -43,6 +43,10 @@ public partial class Model
                     : Math.Abs((takeProfit.Price - EntryPrice) / Symbol.PipSize).Round(1);
             }
         }
+        else
+        {
+            UpdateTakeProfitPriceFromPips();
+        }
     }
     
     public void UpdateTakeProfitsFromTradeTypeChange()
@@ -50,23 +54,25 @@ public partial class Model
         UpdateTakeProfitPriceFromPips();
     }
 
-    public void UpdateTakeProfitsFromSpreadAdjustment()
+    /// <summary>
+    /// Effective ("real") take-profit distance for the TP at <paramref name="index"/>, used in every reward /
+    /// risk-reward calculation and at order placement. With Spread Adjustment (TP) on, this narrows the displayed TP by
+    /// the current spread while the panel keeps showing the base (user-entered or ATR-derived) distance. Applies in both
+    /// ATR and non-ATR modes. Returns the displayed pips unchanged when SA is off, when there is no TP, or when narrowing
+    /// would make the distance non-positive. Computed live from <see cref="Symbol"/>.Spread so it tracks spread changes.
+    /// </summary>
+    public double RealTakeProfitPips(int index)
     {
-        if (TakeProfitSpreadAdjusted)
-            TakeProfits.List[0].Pips -= Symbol.Spread / Symbol.PipSize;
-        else
-            TakeProfits.List[0].Pips += Symbol.Spread / Symbol.PipSize;
+        var pips = TakeProfits.List[index].Pips;
 
-        if (TakeProfits.List[0].Pips <= 0)
-        {
-            TakeProfits.List[0].Pips = 0;
-            TakeProfits.List[0].Price = 0.0;
-            return;
-        }
-        
-        TakeProfits.List[0].Price = TradeType == TradeType.Buy ? EntryPrice + TakeProfits.List[0].Pips * Symbol.PipSize : EntryPrice - TakeProfits.List[0].Pips * Symbol.PipSize;
+        if (!TakeProfitSpreadAdjusted || pips <= 0)
+            return pips;
+
+        var adjusted = Math.Round(pips - Symbol.Spread / Symbol.PipSize, 1);
+
+        return adjusted > 0 ? adjusted : pips;
     }
-    
+
     public void ChangeTakeProfitPips(int id, double pips)
     {
         if (pips == 0)
@@ -76,8 +82,68 @@ public partial class Model
             return;
         }
         
-        TakeProfits.List[id].Pips = pips + TakeProfits.CommissionPipsExtra;
-        TakeProfits.List[id].Price = TradeType == TradeType.Buy ? EntryPrice + pips * Symbol.PipSize : EntryPrice - pips * Symbol.PipSize;
+        TakeProfits.List[id].Pips = pips;
+        TakeProfits.List[id].Price = TradeType == TradeType.Buy
+            ? EntryPrice + pips * Symbol.PipSize
+            : EntryPrice - pips * Symbol.PipSize;
+    }
+
+    /// <summary>
+    /// MQL5 <c>ProcessTPChange</c> (Position Sizer.mqh) when <c>UseCommissionToSetTPDistance</c> is enabled:
+    /// <c>tp_distance = (OutputRiskMoney * TPMultiplier + OutputPositionSize * commission * 2)
+    /// / (OutputPositionSize * UnitCost_reward / TickSize)</c>,
+    /// where <c>OutputRiskMoney = (SL loss + 2 * commission) * position size</c> and <c>commission</c> is one-way per lot.
+    /// Here: <c>slBasedPips</c> = <c>StopLoss.Pips * LockedMultiplier * (tpIndex + 1)</c>, so <c>TPMultiplier = slBasedPips / StopLoss.Pips</c>.
+    /// Falls back to <paramref name="slBasedPips"/> when the parameter is off, commission is zero, or volume is unknown.
+    /// cAlgo uses <see cref="StandardCommission"/> (symbol commission) instead of MQL5's editable <c>CommissionPerLot</c>.
+    /// </summary>
+    public double CalculateTakeProfitPipsWithCommission(double slBasedPips)
+    {
+        if (slBasedPips == 0 || StopLoss.Pips == 0)
+            return slBasedPips;
+
+        if (!InputUseCommissionToSetTpDistance || StandardCommission() <= 0 || TradeSize.Volume == 0)
+            return slBasedPips;
+
+        var pipValueOne = Symbol.AmountRisked(TradeSize.Volume, 1);
+        if (pipValueOne <= 0)
+            return slBasedPips;
+
+        var tpMultiplier = slBasedPips / StopLoss.Pips;
+        var roundTripCommission = 2 * StandardCommission() * TradeSize.Lots;
+        var riskMoney = Symbol.AmountRisked(TradeSize.Volume, StopLoss.Pips) + roundTripCommission;
+
+        return Math.Round((riskMoney * tpMultiplier + roundTripCommission) / pipValueOne, 1);
+    }
+
+    public void SetTakeProfitFromSlDistance(int id, double slBasedPips)
+    {
+        if (slBasedPips == 0)
+        {
+            TakeProfits.List[id].Pips = 0.0;
+            TakeProfits.List[id].Price = 0.0000;
+            return;
+        }
+
+        var pips = CalculateTakeProfitPipsWithCommission(slBasedPips);
+        TakeProfits.List[id].Pips = pips;
+        TakeProfits.List[id].Price = TradeType == TradeType.Buy
+            ? EntryPrice + pips * Symbol.PipSize
+            : EntryPrice - pips * Symbol.PipSize;
+    }
+
+    /// <summary>
+    /// Updates the persisted <see cref="TakeProfits.CommissionPipsExtra"/> cache (extra pips at 1× SL). Requires trade size to be set.
+    /// </summary>
+    public void RefreshCommissionPipsExtra()
+    {
+        if (!InputUseCommissionToSetTpDistance || StopLoss.Pips == 0 || StandardCommission() <= 0)
+        {
+            TakeProfits.CommissionPipsExtra = 0;
+            return;
+        }
+
+        TakeProfits.CommissionPipsExtra = CalculateTakeProfitPipsWithCommission(StopLoss.Pips) - StopLoss.Pips;
     }
 
     public void UpdateTakeProfitFromAtr()
@@ -85,28 +151,21 @@ public partial class Model
         if (TakeProfitMultiplier == 0)
             return;
 
+        //Only sets the base ATR distance; Spread Adjustment is applied downstream via RealTakeProfitPips.
         if (TakeProfits.LockedOnStopLoss)
         {
             UpdateTakeProfitPipsLockedOnStopLoss();
-            
-            if (TakeProfitSpreadAdjusted)
-                TakeProfits.List[0].Pips -= Symbol.Spread / Symbol.PipSize;
-            
+
             TakeProfits.List[0].Pips = Math.Abs(Math.Round(TakeProfits.List[0].Pips, 1));
-            
+
             TakeProfits.List[0].Price = TradeType == TradeType.Buy
                 ? EntryPrice + TakeProfits.List[0].Pips * Symbol.PipSize
                 : EntryPrice - TakeProfits.List[0].Pips * Symbol.PipSize;
         }
         else
         {
-            TakeProfits.List[0].Pips = GetAtrPips() * TakeProfitMultiplier + TakeProfits.CommissionPipsExtra;
-        
-            if (TakeProfitSpreadAdjusted)
-                TakeProfits.List[0].Pips -= Symbol.Spread / Symbol.PipSize;
-        
-            TakeProfits.List[0].Pips = Math.Abs(Math.Round(TakeProfits.List[0].Pips, 1));
-        
+            TakeProfits.List[0].Pips = Math.Abs(Math.Round(GetAtrPips() * TakeProfitMultiplier, 1));
+
             TakeProfits.List[0].Price = TradeType == TradeType.Buy
                 ? EntryPrice + TakeProfits.List[0].Pips * Symbol.PipSize
                 : EntryPrice - TakeProfits.List[0].Pips * Symbol.PipSize;
@@ -133,9 +192,7 @@ public partial class Model
             return;
         }
         
-        var pipsExtra = TakeProfits.CommissionPipsExtra * Symbol.PipSize;
-        
-        TakeProfits.List[id].Price = TradeType == TradeType.Buy ? price + pipsExtra : price - pipsExtra;
+        TakeProfits.List[id].Price = price;
         TakeProfits.List[id].Pips = Math.Abs((EntryPrice - price) / Symbol.PipSize).Round(1);
     }
 
@@ -143,7 +200,7 @@ public partial class Model
     //todo adjust here for when TP is locked for the new TP
     {
         var takeProfit = new TakeProfit();
-        var pips = TakeProfits.List[0].Pips * (TakeProfits.List.Count + 1) + TakeProfits.CommissionPipsExtra;
+        var pips = TakeProfits.List[0].Pips * (TakeProfits.List.Count + 1);
         
         if (prefillAdditionalTpsBasedOnMain)
         {
@@ -175,15 +232,28 @@ public partial class Model
     public void UpdateTakeProfitPipsLockedOnStopLoss()
     {
         for (var i = 0; i < TakeProfits.List.Count; i++)
-        {
-            var tp = TakeProfits.List[i];
-            ChangeTakeProfitPips(i, StopLoss.Pips * TakeProfits.LockedMultiplier * (i + 1));
-        }
+            SetTakeProfitFromSlDistance(i, StopLoss.Pips * TakeProfits.LockedMultiplier * (i + 1));
+
+        RefreshCommissionPipsExtra();
     }
     
     public void UpdateTakeProfitPipsLockedOnStopLoss(int id)
     {
-        ChangeTakeProfitPips(id, StopLoss.Pips * TakeProfits.LockedMultiplier * (id + 1));
+        SetTakeProfitFromSlDistance(id, StopLoss.Pips * TakeProfits.LockedMultiplier * (id + 1));
+        RefreshCommissionPipsExtra();
+    }
+
+    public void SetTakeProfitLockedMultiplier(double value)
+    {
+        TakeProfits.LockedMultiplier = value;
+    }
+
+    public void SyncAtrTakeProfitMultiplierFromLocked()
+    {
+        if (!IsAtrModeActive || StopLossMultiplier <= 0)
+            return;
+
+        TakeProfitMultiplier = Math.Round(StopLossMultiplier * TakeProfits.LockedMultiplier, 2);
     }
     
     public bool IsAnyTakeProfitInvalid()

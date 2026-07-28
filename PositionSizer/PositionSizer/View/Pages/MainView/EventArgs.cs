@@ -41,23 +41,23 @@ public class TakeProfitLevelAddedEventArgs : EventArgs
     }
 }
 
-public class AtrTakeProfitSaChangedEventArgs : EventArgs
+public class TakeProfitSpreadAdjustChangedEventArgs : EventArgs
 {
-    public bool IsChecked { get; }
+    public bool IsEnabled { get; }
     
-    public AtrTakeProfitSaChangedEventArgs(bool isChecked)
+    public TakeProfitSpreadAdjustChangedEventArgs(bool isEnabled)
     {
-        IsChecked = isChecked;
+        IsEnabled = isEnabled;
     }
 }
 
-public class AtrStopLossSaChangedEventArgs : EventArgs
+public class StopLossSpreadAdjustChangedEventArgs : EventArgs
 {
-    public bool IsChecked { get; }
+    public bool IsEnabled { get; }
 
-    public AtrStopLossSaChangedEventArgs(bool isChecked)
+    public StopLossSpreadAdjustChangedEventArgs(bool isEnabled)
     {
-        IsChecked = isChecked;
+        IsEnabled = isEnabled;
     }
 }
 
@@ -240,5 +240,15 @@ public class TpLockChangedEventArgs
     public TpLockChangedEventArgs(bool isLocked)
     {
         IsLocked = isLocked;
+    }
+}
+
+public class TakeProfitLockedMultiplierChangedEventArgs : EventArgs
+{
+    public double LockedMultiplier { get; }
+
+    public TakeProfitLockedMultiplierChangedEventArgs(double lockedMultiplier)
+    {
+        LockedMultiplier = lockedMultiplier;
     }
 }

@@ -24,6 +24,11 @@ public class MainView : Button, IMainViewResources
     private readonly XTextBoxDoubleNumeric _stopLossTb;
     private readonly XTextBoxDoubleNumeric _takeProfitTb;
     private readonly XTextBoxDoubleNumeric _stopLimitPriceTextBox;
+
+    private readonly Button _stopLossSaButton;
+    private readonly Button _takeProfitSaButton;
+    private readonly SpreadAdjustFieldView _stopLossSpreadAdjust;
+    private readonly SpreadAdjustFieldView _takeProfitSpreadAdjust;
     
     private readonly Button _orderTypeButton;
     private readonly Button _hideLinesButton;
@@ -44,6 +49,8 @@ public class MainView : Button, IMainViewResources
     
     private int _rowIndex;
     private readonly XTextBoxDouble _showPipValueTextBox;
+    private double _pipValueDebugLots = -1;
+    private double _pipValueDebugVolume = -1;
     private readonly TextBlock _stopPriceTextBlock;
     private readonly TextBlock _wrongStopPriceValueTextBlock;
     private readonly Grid _atrPeriodAndValueGrid;
@@ -51,11 +58,9 @@ public class MainView : Button, IMainViewResources
     private readonly XTextBoxInt _atrPeriodTextBox;
     private readonly TextBlock _atrStopLossMultiplierTextBlock;
     private readonly XTextBoxDouble _atrStopLossMultiplierTextBox;
-    private readonly CheckBox _atrStopLossSaCheckBox;
     private readonly TextBlock _atrCurrentValueTextBlock;
     private readonly TextBlock _atrTpMultiplierTextBlock;
     private readonly XTextBoxDouble _atrTakeProfitMultiplierTextBox;
-    private readonly CheckBox _atrTakeProfitSaCheckBox;
     private readonly TextBlock _atrTimeFrameTextBlock;
     private readonly Button _atrTimeFrameButton;
     private readonly Grid _takeProfitGrid;
@@ -64,6 +69,7 @@ public class MainView : Button, IMainViewResources
     private readonly TextBlock _rewardCashTextBlock;
     private readonly TextBlock _rewardRiskTextBlock;
     private readonly Button _takeProfitButton;
+    private readonly XTextBoxDouble _tpLockedMultiplierTextBox;
     private readonly Button _quickRisk1Button;
     private readonly Button _quickRisk2Button;
     private readonly Grid _quickRiskGrid;
@@ -97,20 +103,18 @@ public class MainView : Button, IMainViewResources
     public event EventHandler<AtrStopLossMultiplierChangedEventArgs> AtrStopLossMultiplierChanged;
     public event EventHandler<AtrTakeProfitMultiplierChangedEventArgs> AtrTakeProfitMultiplierChanged;
     public event EventHandler<AtrTimeFrameChangedEventArgs> AtrTimeFrameChanged;
-    public event EventHandler<AtrStopLossSaChangedEventArgs> AtrStopLossSaChanged;
-    public event EventHandler<AtrTakeProfitSaChangedEventArgs> AtrTakeProfitSaChanged;
+    public event EventHandler<StopLossSpreadAdjustChangedEventArgs> StopLossSpreadAdjustChanged;
+    public event EventHandler<TakeProfitSpreadAdjustChangedEventArgs> TakeProfitSpreadAdjustChanged;
     public event EventHandler TakeProfitButtonClick;
     public event EventHandler<TpLockChangedEventArgs> TpLockChanged;
+    public event EventHandler<TakeProfitLockedMultiplierChangedEventArgs> TakeProfitLockedMultiplierChanged;
 
     #endregion
 
     public MainView(IMainViewResources resources, IModel model)
     {
         _resources = resources;
-        _grid = new Grid()
-        {
-            //ShowGridLines = true
-        };
+        _grid = new Grid();
         this.Content = _grid;
         
         _grid.AddColumns(4);
@@ -138,7 +142,7 @@ public class MainView : Button, IMainViewResources
             _longShortButton.BackgroundColor = InputLongButtonColor;
         
         _longShortButton.Width = 59;
-        _longShortButton.HorizontalAlignment = HorizontalAlignment.Left;
+        _longShortButton.HorizontalAlignment = HorizontalAlignment.Right;
         _longShortButton.Click += LongShortButtonOnClick;
         
         _priceTargetTb = MakeTextBoxDoubleNumeric(Symbol.Ask, Symbol.Digits, Symbol.TickSize, TextBoxOnPriceTargetValueUpdated);
@@ -160,7 +164,7 @@ public class MainView : Button, IMainViewResources
                 throw new ArgumentOutOfRangeException();
         }
         
-        _grid.AddChild(_longShortButton, _rowIndex, 1, 1, 2);
+        _grid.AddChild(_longShortButton, _rowIndex, 1);
         _grid.AddChild(_priceTargetTb, _rowIndex, 2);
         
         //--NEW ROW
@@ -172,39 +176,76 @@ public class MainView : Button, IMainViewResources
         //KeyMultiplierFeature.SetFeatureOnButton(_stopLossTb);
 
         NewRow();
-        
+
+        //Header spanning cols 0-1: the "Stop Loss" label/button (col 0) plus the SA toggle button (col 1),
+        //so the SA button sits immediately to the left of the value field in col 2.
+        _stopLossSaButton = MakeSaButton();
+
+        var stopLossHeaderGrid = new Grid(1, 2)
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Width = 155
+        };
+        stopLossHeaderGrid.Columns[0].SetWidthInPixels(125);
+        stopLossHeaderGrid.Columns[1].SetWidthInPixels(30);
+
         if (model.StopLoss.HasDefaultSwitch)
         {
             var stopLossDefaultButton = MakeButton("Stop Loss");
-            stopLossDefaultButton.Width = 145;
+            stopLossDefaultButton.Width = 123;
             stopLossDefaultButton.Click += OnStopLossDefaultButtonOnClick;
-            _grid.AddChild(stopLossDefaultButton, _rowIndex, 0, 1, 2);
+            stopLossHeaderGrid.AddChild(stopLossDefaultButton, 0, 0);
         }
         else
         {
             var stopLossTextBlock = MakeTextBlock("Stop Loss");
-            _grid.AddChild(stopLossTextBlock, _rowIndex, 0, 1, 2);
+            stopLossHeaderGrid.AddChild(stopLossTextBlock, 0, 0);
         }
-        
+
+        stopLossHeaderGrid.AddChild(_stopLossSaButton, 0, 1);
+
+        _stopLossSpreadAdjust = new SpreadAdjustFieldView(_stopLossSaButton, _stopLossTb, CustomStyle);
+        _stopLossSpreadAdjust.EnabledChanged += (_, enabled) =>
+        {
+            TrySaveTextBoxesContent();
+            StopLossSpreadAdjustChanged?.Invoke(this, new StopLossSpreadAdjustChangedEventArgs(enabled));
+        };
+
+        _grid.AddChild(stopLossHeaderGrid, _rowIndex, 0, 1, 2);
         _grid.AddChild(_stopLossTb, _rowIndex, 2);
         
         //--NEW ROW
-        //(+)Take Profit Button (Column 0-1)
-        //Take Profit (+-) TextBox(+-) (Column 2)
+        //(+) TP x [multiplier] (Columns 0-1) | Take Profit TextBox (Column 2) | Lock TP (Column 3)
 
-        _takeProfitGrid = new Grid(1, 4)
-        {
-            //ShowGridLines = true,
-            Width = 255,
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-        
         var addTakeProfitButton = MakeButton("+");
         addTakeProfitButton.Width = 30;
         addTakeProfitButton.Click += AddTakeProfitButtonOnClick;
         
-        _takeProfitButton = MakeButton(Math.Abs(model.TakeProfits.LockedMultiplier - 1) < double.Epsilon ? "Take Profit" : $"TP x {model.TakeProfits.LockedMultiplier}");
-        _takeProfitButton.Width = 98;
+        _takeProfitButton = MakeButton("TP x");
+        _takeProfitButton.Width = 51;
+
+        _tpLockedMultiplierTextBox = MakeTextBoxDouble(model.TakeProfits.LockedMultiplier, 0, TextBoxTpLockedMultiplierChanged);
+        _tpLockedMultiplierTextBox.UseAdaptiveDecimalPlaces = true;
+        _tpLockedMultiplierTextBox.ChangeWriteAreaWidth(38);
+        _tpLockedMultiplierTextBox.HorizontalAlignment = HorizontalAlignment.Left;
+        _tpLockedMultiplierTextBox.TextAlignment = TextAlignment.Center;
+
+        //Append an SA toggle button after the [+][TP x][mult] group so it sits just left of the value field in col 2.
+        _takeProfitSaButton = MakeSaButton();
+
+        var takeProfitButtonGrid = new Grid(1, 4)
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        takeProfitButtonGrid.Columns[0].SetWidthInPixels(32);
+        takeProfitButtonGrid.Columns[1].SetWidthInPixels(53);
+        takeProfitButtonGrid.Columns[2].SetWidthInPixels(40);
+        takeProfitButtonGrid.Columns[3].SetWidthInPixels(30);
+        takeProfitButtonGrid.AddChild(addTakeProfitButton, 0, 0);
+        takeProfitButtonGrid.AddChild(_takeProfitButton, 0, 1);
+        takeProfitButtonGrid.AddChild(_tpLockedMultiplierTextBox, 0, 2);
+        takeProfitButtonGrid.AddChild(_takeProfitSaButton, 0, 3);
+
         _takeProfitTb = model.TakeProfits.Mode == TargetMode.Pips
             ? MakeTextBoxDoubleNumeric(model.TakeProfits.List[0].Pips, 1, 0.1, TakeProfitTextBoxOnTextUpdatedAndValid)
             : MakeTextBoxDoubleNumeric(model.TakeProfits.List[0].Price, Symbol.Digits, Symbol.TickSize, TakeProfitTextBoxOnTextUpdatedAndValid);
@@ -215,21 +256,28 @@ public class MainView : Button, IMainViewResources
         _lockTpCheckBox.Checked += _ => TpLockChanged?.Invoke(this, new TpLockChangedEventArgs(true));
         _lockTpCheckBox.Unchecked += _ => TpLockChanged?.Invoke(this, new TpLockChangedEventArgs(false));
 
-        //_takeProfitGrid.BackgroundColor = Color.LightBlue;
-        //_takeProfitGrid.ShowGridLines = true;
-        _takeProfitGrid.Rows[0].SetHeightInPixels(28);
-        _takeProfitGrid.Columns[0].SetWidthInPixels(45);
-        _takeProfitGrid.Columns[1].SetWidthInPixels(108);
-        _takeProfitGrid.Columns[2].SetWidthInPixels(101);
-        _takeProfitGrid.Columns[3].SetWidthInPixels(80);
-        _takeProfitGrid.Width = 350;
-        
-        _takeProfitGrid.AddChild(addTakeProfitButton, 0, 0);
-        _takeProfitGrid.AddChild(_takeProfitButton, 0, 1);
-        _takeProfitGrid.AddChild(_takeProfitTb, 0, 2);
-        _takeProfitGrid.AddChild(_lockTpCheckBox, 0, 3);
+        _takeProfitSpreadAdjust = new SpreadAdjustFieldView(_takeProfitSaButton, _takeProfitTb, CustomStyle);
+        _takeProfitSpreadAdjust.EnabledChanged += (_, enabled) =>
+        {
+            TrySaveTextBoxesContent();
+            TakeProfitSpreadAdjustChanged?.Invoke(this, new TakeProfitSpreadAdjustChangedEventArgs(enabled));
+        };
+
+        _takeProfitGrid = new Grid(0, 3)
+        {
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        _takeProfitGrid.Columns[0].SetWidthInPixels(34);
+        _takeProfitGrid.Columns[1].SetWidthInPixels(121);
+        _takeProfitGrid.Columns[2].SetWidthInPixels(102);
 
         NewRow();
+        _grid.AddChild(takeProfitButtonGrid, _rowIndex, 0, 1, 2);
+        _grid.AddChild(_takeProfitTb, _rowIndex, 2);
+        _grid.AddChild(_lockTpCheckBox, _rowIndex, 3);
+
+        NewRow();
+        _takeProfitGrid.IsVisible = false;
         _grid.AddChild(_takeProfitGrid, _rowIndex, 0, 1, 4);
         
         var tpView = new TakeProfitRowView(_tpViews.Count, addTakeProfitButton, _takeProfitButton, _takeProfitTb);
@@ -291,35 +339,23 @@ public class MainView : Button, IMainViewResources
             _atrStopLossMultiplierTextBox.ChangeWriteAreaWidth(40);
             
             _grid.Columns[2].SetWidthInPixels(20);
-            
-            
-            _atrStopLossSaCheckBox = MakeCheckBox("SA");
-            _atrStopLossSaCheckBox.IsChecked = model.StopLossSpreadAdjusted;
-            _atrStopLossSaCheckBox.Checked += AtrStopLossSaCheckBoxChecked;
-            _atrStopLossSaCheckBox.Unchecked += AtrStopLossSaCheckBoxUnChecked;
         
             NewRow();
             _grid.AddChild(_atrPeriodAndValueGrid, _rowIndex, 0, 1, 2);
             _grid.AddChild(_atrStopLossMultiplierTextBlock, _rowIndex, 1);
             _grid.AddChild(_atrStopLossMultiplierTextBox, _rowIndex, 2);
-            _grid.AddChild(_atrStopLossSaCheckBox, _rowIndex, 3);
         
-            //--NEW ROW (ATR = Current Value) TP Multiplier [ Value ] TP CheckBox [ Value ])
+            //--NEW ROW (ATR = Current Value) TP Multiplier [ Value ])
             _atrCurrentValueTextBlock = MakeTextBlock("ATR = 0.0000");
             _atrTpMultiplierTextBlock = MakeTextBlock("TP Multiplier:");
             _atrTakeProfitMultiplierTextBox = MakeTextBoxDouble(model.TakeProfitMultiplier, 2, TextBoxAtrTakeProfitMultiplierChanged);
             _atrTakeProfitMultiplierTextBox.ChangeWriteAreaWidth(40);
             _atrTakeProfitMultiplierTextBox.HorizontalAlignment = HorizontalAlignment.Left;
-            _atrTakeProfitSaCheckBox = MakeCheckBox("SA");
-            _atrTakeProfitSaCheckBox.IsChecked = model.TakeProfitSpreadAdjusted;
-            _atrTakeProfitSaCheckBox.Checked += AtrTakeProfitSaCheckBoxChecked;
-            _atrTakeProfitSaCheckBox.Unchecked += AtrTakeProfitSaCheckBoxUnChecked;
         
             NewRow();
             _grid.AddChild(_atrCurrentValueTextBlock, _rowIndex, 0, 1, 2);
             _grid.AddChild(_atrTpMultiplierTextBlock, _rowIndex, 1);
             _grid.AddChild(_atrTakeProfitMultiplierTextBox, _rowIndex, 2);
-            _grid.AddChild(_atrTakeProfitSaCheckBox, _rowIndex, 3);
         
             //--NEW ROW (ATR Timeframe [TimeFrame Button])
             _atrTimeFrameTextBlock = MakeTextBlock("ATR Timeframe");
@@ -402,7 +438,7 @@ public class MainView : Button, IMainViewResources
         //--NEW ROW
         //Risk % TextBlock (Column 0-1)
         //Risk % TextBox (Column 2)
-        
+
         var riskTextBlock = MakeTextBlock("Risk %");
 
         _quickRiskGrid = new Grid(1, 1);
@@ -444,39 +480,42 @@ public class MainView : Button, IMainViewResources
         _grid.AddChild(_riskPercentTextBox, _rowIndex, 2);
         _grid.AddChild(_riskPercentResultTextBox, _rowIndex, 3);
 
-        //--NEW ROW
-        //Risk (USD) TextBlock (Column 0-1)
-        //Risk (USD) TextBox (Column 2)
+        if (!InputHideMoneyAndPipsValues)
+        {
+            //--NEW ROW
+            //Risk (USD) TextBlock (Column 0-1)
+            //Risk (USD) TextBox (Column 2)
         
-        _riskCurrencyTextBlock = MakeTextBlock($"Risk ({Account.Asset.Name})");
-        _riskCashTextBox = MakeTextBoxDouble(model.TradeSize.RiskInCurrency, 2, RiskCashTextBoxOnTextChanged);
+            _riskCurrencyTextBlock = MakeTextBlock($"Risk ({Account.Asset.Name})");
+            _riskCashTextBox = MakeTextBoxDouble(model.TradeSize.RiskInCurrency, 2, RiskCashTextBoxOnTextChanged);
         
-        _riskCashResultTextBox = MakeTextBoxDouble(model.TradeSize.RiskInCurrency, 2, RiskCashTextBoxOnTextChanged);
-        _riskCashResultTextBox.IsReadOnly = true;
+            _riskCashResultTextBox = MakeTextBoxDouble(model.TradeSize.RiskInCurrency, 2, RiskCashTextBoxOnTextChanged);
+            _riskCashResultTextBox.IsReadOnly = true;
 
-        NewRow();
-        _grid.AddChild(_riskCurrencyTextBlock, _rowIndex, 0, 1, 2);
-        _grid.AddChild(_riskCashTextBox, _rowIndex, 2);
-        _grid.AddChild(_riskCashResultTextBox, _rowIndex, 3);
+            NewRow();
+            _grid.AddChild(_riskCurrencyTextBlock, _rowIndex, 0, 1, 2);
+            _grid.AddChild(_riskCashTextBox, _rowIndex, 2);
+            _grid.AddChild(_riskCashResultTextBox, _rowIndex, 3);
 
-        //--NEW ROW
-        //Reward (USD) TextBlock (Column 0-1)
-        //Reward (USD) TextBox (Column 2)
+            //--NEW ROW
+            //Reward (USD) TextBlock (Column 0-1)
+            //Reward (USD) TextBox (Column 2)
         
-        _rewardCashTextBlock = MakeTextBlock($"Reward ({Account.Asset.Name})");
-        _rewardCashTextBox = new XTextBoxDouble(model.TradeSize.RewardInCurrency, 2);
-        _rewardCashTextBox.SetCustomStyle(CustomStyle);
-        _rewardCashTextBox.IsReadOnly = true;
+            _rewardCashTextBlock = MakeTextBlock($"Reward ({Account.Asset.Name})");
+            _rewardCashTextBox = new XTextBoxDouble(model.TradeSize.RewardInCurrency, 2);
+            _rewardCashTextBox.SetCustomStyle(CustomStyle);
+            _rewardCashTextBox.IsReadOnly = true;
 
-        _rewardCashResultTextBox = new XTextBoxDouble(model.TradeSize.RewardInCurrency, 2);
-        _rewardCashResultTextBox.SetCustomStyle(CustomStyle);
-        _rewardCashResultTextBox.IsReadOnly = true;
+            _rewardCashResultTextBox = new XTextBoxDouble(model.TradeSize.RewardInCurrency, 2);
+            _rewardCashResultTextBox.SetCustomStyle(CustomStyle);
+            _rewardCashResultTextBox.IsReadOnly = true;
 
-        NewRow();
-        _grid.AddChild(_rewardCashTextBlock, _rowIndex, 0, 1, 2);
-        _grid.AddChild(_rewardCashTextBox, _rowIndex, 2);
-        _grid.AddChild(_rewardCashResultTextBox, _rowIndex, 3);
-
+            NewRow();
+            _grid.AddChild(_rewardCashTextBlock, _rowIndex, 0, 1, 2);
+            _grid.AddChild(_rewardCashTextBox, _rowIndex, 2);
+            _grid.AddChild(_rewardCashResultTextBox, _rowIndex, 3);
+        }
+        
         //--NEW ROW
         //Reward/Risk TextBlock (Column 0-1)
         //Reward/Risk TextBox (Column 3)
@@ -542,7 +581,8 @@ public class MainView : Button, IMainViewResources
         {
             var showPipValueTextBlock = MakeTextBlock($"Pip value, {Account.Asset.Name}");
             
-            _showPipValueTextBox = new XTextBoxDouble(0.00, 2);
+            _showPipValueTextBox = new XTextBoxDouble(0.00, Account.Asset.Digits);
+            _showPipValueTextBox.UseAdaptiveDecimalPlaces = true;
             _showPipValueTextBox.SetCustomStyle(CustomStyle);
             _showPipValueTextBox.IsReadOnly = true;
         
@@ -596,6 +636,11 @@ public class MainView : Button, IMainViewResources
         TakeProfitButtonClick?.Invoke(this, EventArgs.Empty);
     }
 
+    private void TextBoxTpLockedMultiplierChanged(object sender, ControlValueUpdatedEventArgs<double> e)
+    {
+        TakeProfitLockedMultiplierChanged?.Invoke(this, new TakeProfitLockedMultiplierChangedEventArgs(e.Value));
+    }
+
     private void TakeProfitTextBoxOnTextUpdatedAndValid(object sender, ControlValueUpdatedEventArgs<double> e)
     {
         TakeProfitPriceChanged?.Invoke(this, new TakeProfitPriceChangedEventArgs(0, e.Value));
@@ -618,7 +663,7 @@ public class MainView : Button, IMainViewResources
         removeButton.Width = 30;
         removeButton.Click += RemoveTakeProfitButtonOnClick;
 
-        var takeProfitBlock = MakeTextBlock($"Take Profit ({_takeProfitGrid.Rows.Count + 1})");
+        var takeProfitBlock = MakeTextBlock($"Take Profit ({_tpViews.Count + 1})");
 
         var takeProfitTextBox = new XTextBoxDoubleNumeric(0, Symbol.Digits, Symbol.TickSize);
         takeProfitTextBox.SetCustomStyle(CustomStyle);
@@ -644,6 +689,7 @@ public class MainView : Button, IMainViewResources
         _takeProfitGrid.AddChild(removeButton, row, 0);
         _takeProfitGrid.AddChild(takeProfitBlock, row, 1);
         _takeProfitGrid.AddChild(takeProfitTextBox, row, 2);
+        _takeProfitGrid.IsVisible = true;
 
         if (triggerAlert)
             TakeProfitLevelAdded?.Invoke(this, new TakeProfitLevelAddedEventArgs());
@@ -663,6 +709,7 @@ public class MainView : Button, IMainViewResources
         _takeProfitGrid.RemoveChild(_tpViews[^1].TakeProfitTextBox);
         _tpViews.RemoveAt(_tpViews.Count - 1);
         _takeProfitGrid.RemoveRowAt(_takeProfitGrid.Rows.Count - 1);
+        _takeProfitGrid.IsVisible = _takeProfitGrid.Rows.Count > 0;
 
         if (_tpViews.Count > 0)
             _tpViews[^1].RemoveButton.IsVisible = true;
@@ -677,18 +724,6 @@ public class MainView : Button, IMainViewResources
         AtrTimeFrameChanged?.Invoke(this, new AtrTimeFrameChangedEventArgs(_atrTimeFrameButton.Text));
     }
 
-    private void AtrTakeProfitSaCheckBoxUnChecked(CheckBoxEventArgs obj)
-    {
-        if (obj.CheckBox.IsChecked.HasValue && !obj.CheckBox.IsChecked.Value)
-            AtrTakeProfitSaChanged?.Invoke(this, new AtrTakeProfitSaChangedEventArgs(false));
-    }
-
-    private void AtrTakeProfitSaCheckBoxChecked(CheckBoxEventArgs obj)
-    {
-        if (obj.CheckBox.IsChecked.HasValue && obj.CheckBox.IsChecked.Value)
-            AtrTakeProfitSaChanged?.Invoke(this, new AtrTakeProfitSaChangedEventArgs(true));
-    }
-    
     private void TextBoxAtrTakeProfitMultiplierChanged(object sender, ControlValueUpdatedEventArgs<double> e)
     {
         AtrTakeProfitMultiplierChanged?.Invoke(this, new AtrTakeProfitMultiplierChangedEventArgs(e.Value));
@@ -704,18 +739,6 @@ public class MainView : Button, IMainViewResources
         _atrCurrentValueTextBlock.Text = $"ATR = {model.GetAtrPips().ToString($"0.{new string('0', 2)}")}";
     }
 
-    private void AtrStopLossSaCheckBoxUnChecked(CheckBoxEventArgs obj)
-    {
-        if (obj.CheckBox.IsChecked.HasValue && !obj.CheckBox.IsChecked.Value)
-            AtrStopLossSaChanged?.Invoke(this, new AtrStopLossSaChangedEventArgs(false));
-    }
-
-    private void AtrStopLossSaCheckBoxChecked(CheckBoxEventArgs obj)
-    {
-        if (obj.CheckBox.IsChecked.HasValue && obj.CheckBox.IsChecked.Value)
-            AtrStopLossSaChanged?.Invoke(this, new AtrStopLossSaChangedEventArgs(true));
-    }
-    
     private void TextBoxAtrStopLossMultiplierChanged(object sender, ControlValueUpdatedEventArgs<double> e)
     {
         if (e.Value < 0)
@@ -906,6 +929,8 @@ public class MainView : Button, IMainViewResources
         UpdateTakeProfitPrecision(model);
         UpdateStopLossText(model);
         UpdateTakeProfitView(model);
+        UpdateSpreadAdjustFields(model);
+        UpdateTakeProfitLockedMultiplierControls(model);
         UpdateRiskRewardSection(model);
         UpdateStopPriceIfNeeded(model);
         UpdateOrderTypeButton(model);
@@ -928,7 +953,7 @@ public class MainView : Button, IMainViewResources
 
     private void UpdateAtrControls(IModel model)
     {
-        if (!model.IsAtrModeActive) 
+        if (!model.IsAtrModeActive || !InputShowAtrOptions)
             return;
         
         _atrPeriodTextBox.SetValueWithoutTriggeringEvent(model.Period);
@@ -941,8 +966,35 @@ public class MainView : Button, IMainViewResources
 
     private void UpdatePipValue(IModel model)
     {
-        if (InputShowPipValue)
-            _showPipValueTextBox.SetValueWithoutTriggeringEvent(Symbol.PipValue * model.TradeSize.Volume);
+        if (!InputShowPipValue)
+            return;
+
+        var lots = model.TradeSize.Lots;
+        var volume = model.TradeSize.Volume;
+        var pipValueRaw = Symbol.GetPositionPipValue(lots, volume);
+
+        if (!lots.Is(_pipValueDebugLots, 1e-12) || !volume.Is(_pipValueDebugVolume, 1e-12))
+        {
+            _pipValueDebugLots = lots;
+            _pipValueDebugVolume = volume;
+
+            var tickFormula = Symbol.TickSize > 0
+                ? lots * Symbol.TickValue * (Symbol.PipSize / Symbol.TickSize)
+                : 0;
+
+            //Print($"[PipValue debug] vol={volume} lots={lots}");
+            //Print($"[PipValue debug] AmountRisked@vol={Symbol.AmountRisked(volume, 1)}");
+            //Print($"[PipValue debug] AmountRisked@min={Symbol.AmountRisked(Symbol.VolumeInUnitsMin, 1)}");
+            //Print($"[PipValue debug] PipValue={Symbol.PipValue} TickValue={Symbol.TickValue}");
+            //Print($"[PipValue debug] Tick formula={tickFormula}");
+            //Print($"[PipValue debug] GetPositionPipValue raw={pipValueRaw}");
+        }
+
+        var pipValue = pipValueRaw;
+        if (pipValue > 0)
+            pipValue = RoundToSignificant(pipValue, 2, Account.Asset.Digits);
+
+        _showPipValueTextBox.SetValueWithoutTriggeringEvent(pipValue);
     }
 
     private void UpdatePositionSize(IModel model)
@@ -973,12 +1025,18 @@ public class MainView : Button, IMainViewResources
 
     private void UpdateRewardCash(IModel model)
     {
+        if (InputHideMoneyAndPipsValues)
+            return;
+        
         _rewardCashTextBox.SetValueWithoutTriggeringEvent(model.TradeSize.RewardInCurrency);
         _rewardCashResultTextBox.SetValueWithoutTriggeringEvent(model.TradeSize.RewardCurrencyResult);
     }
 
     private void UpdateRiskCash(IModel model)
     {
+        if (InputHideMoneyAndPipsValues)
+            return;
+        
         _riskCashTextBox.SetValueWithoutTriggeringEvent(model.TradeSize.RiskInCurrency);
         _riskCashResultTextBox.SetValueWithoutTriggeringEvent(model.TradeSize.RiskInCurrencyResult);
     }
@@ -1088,7 +1146,15 @@ public class MainView : Button, IMainViewResources
     {
         if (model.OrderType == OrderType.StopLimit)
         {
-            _stopLimitPriceTextBox.SetValueWithoutTriggeringEvent(model.StopLimitPrice);
+            UpdateStopLimitPrecision(model);
+
+            _stopPriceTextBlock.Text = model.StopLimitMode == TargetMode.Pips
+                ? "Stop Price (pips)"
+                : "Stop Price";
+
+            _stopLimitPriceTextBox.SetValueWithoutTriggeringEvent(model.StopLimitMode == TargetMode.Pips
+                ? model.StopLimitPips()
+                : model.StopLimitPrice);
 
             _stopPriceTextBlock.IsVisible = true;
             _stopLimitPriceTextBox.IsVisible = true;
@@ -1110,14 +1176,32 @@ public class MainView : Button, IMainViewResources
 
     private void UpdateRiskRewardSection(IModel model)
     {
+        if (!InputHideMoneyAndPipsValues)
+        {
+            if (model.TakeProfits.List[0].Pips == 0)
+            {
+                _rewardCashTextBlock.IsVisible = false;
+                _rewardCashTextBox.IsVisible = false;
+                _rewardCashResultTextBox.IsVisible = false;
+            }
+            else if (IsAnyTakeProfitInvalid(model))
+            {
+                _rewardCashTextBlock.IsVisible = false;
+                _rewardCashTextBox.IsVisible = false;
+                _rewardCashResultTextBox.IsVisible = false;
+            }
+            else
+            {
+                _rewardCashTextBlock.IsVisible = true;
+                _rewardCashTextBox.IsVisible = true;
+                _rewardCashResultTextBox.IsVisible = true;
+            }
+        }
+
         if (model.TakeProfits.List[0].Pips == 0)
         {
-            _rewardCashTextBlock.IsVisible = false;
             _rewardRiskTextBlock.IsVisible = false;
             
-            _rewardCashTextBox.IsVisible = false;
-            _rewardCashResultTextBox.IsVisible = false;
-
             _rewardRiskTextBox.IsVisible = false;
             _rewardRiskResultTextBox.IsVisible = false;
 
@@ -1125,11 +1209,6 @@ public class MainView : Button, IMainViewResources
         }
         else if (IsAnyTakeProfitInvalid(model))
         {
-            _rewardCashTextBlock.IsVisible = false;
-            
-            _rewardCashTextBox.IsVisible = false;
-            _rewardCashResultTextBox.IsVisible = false;
-            
             _rewardRiskTextBox.IsVisible = false;
             _rewardRiskResultTextBox.IsVisible = false;
             
@@ -1137,17 +1216,23 @@ public class MainView : Button, IMainViewResources
         }
         else
         {
-            _rewardCashTextBlock.IsVisible = true;
-            _rewardRiskTextBlock.IsVisible = true;
-            
-            _rewardCashTextBox.IsVisible = true;
-            _rewardCashResultTextBox.IsVisible = true;
-
             _rewardRiskTextBlock.IsVisible = true;
             _rewardRiskResultTextBox.IsVisible = true;
             
             _invalidTpTextBox.IsVisible = false;
         }
+    }
+
+    private void UpdateTakeProfitLockedMultiplierControls(IModel model)
+    {
+        _tpLockedMultiplierTextBox.SetValueWithoutTriggeringEvent(model.TakeProfits.LockedMultiplier);
+
+        _lockTpCheckBox.IsChecked = model.TakeProfits.LockedOnStopLoss;
+
+        var tpReadOnly = model.TakeProfits.LockedOnStopLoss;
+        _takeProfitTb.IsReadOnly = tpReadOnly;
+        if (_tpViews.Count > 0)
+            _tpViews[0].TakeProfitTextBox.IsReadOnly = tpReadOnly;
     }
 
     private void UpdateTakeProfitView(IModel model)
@@ -1189,6 +1274,46 @@ public class MainView : Button, IMainViewResources
         _stopLossTb.SetValueWithoutTriggeringEvent(model.StopLoss.Mode == TargetMode.Price
             ? model.StopLoss.Price
             : model.StopLoss.Pips);
+    }
+
+    /// <summary>
+    /// Syncs the SA toggle buttons and the read-only, spread-adjusted value shown below each editable field.
+    /// The adjusted value is derived from <see cref="IModel.RealStopLossPips"/> / <see cref="IModel.RealTakeProfitPips"/>
+    /// (which apply in both ATR and non-ATR modes) and mirrors the editable field's current mode/precision.
+    /// For TP, the green row stays hidden when TP pips are zero even if SA is enabled.
+    /// </summary>
+    private void UpdateSpreadAdjustFields(IModel model)
+    {
+        _stopLossSpreadAdjust.SyncEnabled(model.StopLossSpreadAdjusted);
+        _stopLossSpreadAdjust.SyncAdjustedRowVisible(model.StopLossSpreadAdjusted);
+        if (model.StopLossSpreadAdjusted)
+        {
+            var realPips = model.RealStopLossPips;
+            var value = model.StopLoss.Mode == TargetMode.Pips
+                ? realPips
+                : model.TradeType == TradeType.Buy
+                    ? model.EntryPrice - realPips * Symbol.PipSize
+                    : model.EntryPrice + realPips * Symbol.PipSize;
+
+            _stopLossSpreadAdjust.SetAdjustedValue(value, _stopLossTb.Digits, _stopLossTb.ChangeByFactor);
+        }
+
+        _takeProfitSpreadAdjust.SyncEnabled(model.TakeProfitSpreadAdjusted);
+
+        //No spread-adjusted TP to show when TP is zero, even if SA is enabled.
+        var showTpAdjustedRow = model.TakeProfitSpreadAdjusted && model.TakeProfits.List[0].Pips != 0;
+        _takeProfitSpreadAdjust.SyncAdjustedRowVisible(showTpAdjustedRow);
+        if (showTpAdjustedRow)
+        {
+            var realPips = model.RealTakeProfitPips(0);
+            var value = model.TakeProfits.Mode == TargetMode.Pips
+                ? realPips
+                : model.TradeType == TradeType.Buy
+                    ? model.EntryPrice + realPips * Symbol.PipSize
+                    : model.EntryPrice - realPips * Symbol.PipSize;
+
+            _takeProfitSpreadAdjust.SetAdjustedValue(value, _takeProfitTb.Digits, _takeProfitTb.ChangeByFactor);
+        }
     }
 
     private void UpdateTakeProfitPrecision(IModel model)
@@ -1235,6 +1360,22 @@ public class MainView : Button, IMainViewResources
         }
     }
 
+    private void UpdateStopLimitPrecision(IModel model)
+    {
+        if (model.StopLimitMode == TargetMode.Pips)
+        {
+            var changeByFactor = Symbol.TickSize / Symbol.PipSize;
+
+            _stopLimitPriceTextBox.Digits = CountDecimals(changeByFactor);
+            _stopLimitPriceTextBox.ChangeByFactor = changeByFactor;
+        }
+        else
+        {
+            _stopLimitPriceTextBox.Digits = Symbol.Digits;
+            _stopLimitPriceTextBox.ChangeByFactor = Symbol.TickSize;
+        }
+    }
+
     private void UpdateLongShortButton(IModel model)
     {
         _longShortButton.Text = model.TradeType == TradeType.Buy ? "Long" : "Short";
@@ -1242,6 +1383,7 @@ public class MainView : Button, IMainViewResources
 
     public void TrySaveTextBoxesContent()
     {
+        _tpLockedMultiplierTextBox.TryValidateText();
         _takeProfitTb.TryValidateText();
         _tpViews.ForEach(x => x.TakeProfitTextBox.TryValidateText());
         _stopLossTb.TryValidateText();
@@ -1259,8 +1401,21 @@ public class MainView : Button, IMainViewResources
             _accountBalanceTextBox.TryValidateText();
         
         _riskPercentTextBox.TryValidateText();
-        _riskCashTextBox.TryValidateText();
+
+        if (!InputHideMoneyAndPipsValues)
+            _riskCashTextBox.TryValidateText();
+        
         _positionSizeTextBox.TryValidateText();
+    }
+
+    private Button MakeSaButton()
+    {
+        var button = MakeButton("SA");
+        button.Width = 26;
+        button.FontSize = 9;
+        button.Padding = 0;
+        button.HorizontalAlignment = HorizontalAlignment.Right;
+        return button;
     }
 
     private TextBlock MakeTextBlock(string text)
@@ -1309,6 +1464,7 @@ public class MainView : Button, IMainViewResources
     public bool InputShowAtrOptions => _resources.InputShowAtrOptions;
     public bool InputShowPipValue => _resources.InputShowPipValue;
     public bool InputHideAccountSize => _resources.InputHideAccountSize;
+    public bool InputHideMoneyAndPipsValues => _resources.InputHideMoneyAndPipsValues;
     public bool InputDisableStopLimit => _resources.InputDisableStopLimit;
 
     public IAccount Account => _resources.Account;

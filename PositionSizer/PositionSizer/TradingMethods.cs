@@ -50,11 +50,13 @@ public partial class PositionSizer
             Print($"Spread is acceptable: {(Symbol.Spread / Symbol.PipSize):F2} pips.");
         }
 
+        var plannedTotalVolume = Model.TradeSize.Volume;
+
         if (Model.MaxRiskPercentage > 0)
         {
             var sl = Model.DoNotApplyStopLoss
                 ? null
-                : (double?)Model.StopLoss.Pips;
+                : (double?)Model.RealStopLossPips;
             
             var potentialRisk = sl.HasValue 
                 ? Symbol.AmountRisked(Model.TradeSize.Volume, sl.Value) 
@@ -63,7 +65,69 @@ public partial class PositionSizer
                 
             if (potentialRiskPct > Model.MaxRiskPercentage)
             {
-                var msg = $"Cannot place trade: potential risk ({potentialRiskPct:F2}%) exceeds the maximum allowed risk percentage ({Model.MaxRiskPercentage:F2}%).";
+                //Without an SL the risk is unbounded, so it cannot be sized down by risk - keep blocking.
+                if (InputAllowSmallerTradesWhenTradingLimitsAreExceeded && sl.HasValue)
+                {
+                    var maxRiskAmount = Model.MaxRiskPercentage / 100 * Model.AccountSize.Value;
+                    plannedTotalVolume = Symbol.VolumeForFixedRisk(maxRiskAmount, sl.Value);
+
+                    if (plannedTotalVolume < Symbol.VolumeInUnitsMin)
+                    {
+                        var minVolMsg = $"Cannot place trade: adjusted trade volume ({plannedTotalVolume:F2}) to fit within the maximum risk percentage, but it is below the broker's minimum allowed ({Symbol.VolumeInUnitsMin}). Trade not executed.";
+                        MessageBox.Show(minVolMsg, "Error", MessageBoxButton.OK);
+                        return;
+                    }
+
+                    plannedTotalVolume = Symbol.NormalizeVolumeInUnits(plannedTotalVolume, InputRoundingPositionSizeAndPotentialReward);
+
+                    var result = MessageBox.Show(
+                        $"Take a smaller trade? Potential risk ({potentialRiskPct:F2}%) exceeds the maximum allowed ({Model.MaxRiskPercentage:F2}%). New position volume: {plannedTotalVolume:F2}.",
+                        "Confirmation",
+                        MessageBoxButton.OKCancel);
+
+                    if (result != MessageBoxResult.OK)
+                        return;
+                }
+                else
+                {
+                    var msg = $"Cannot place trade: potential risk ({potentialRiskPct:F2}%) exceeds the maximum allowed risk percentage ({Model.MaxRiskPercentage:F2}%).";
+                    Print(msg);
+                    MessageBox.Show(msg, "Confirmation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+            }
+        }
+
+        //Difference vs MT5: pending/stop-limit orders reserve no margin until they trigger, so the
+        //max margin fuse must not restrict them. MT5 restricts them (acknowledged upstream bug).
+        if (Model.OrderType == OrderType.Instant && Model.MaxMarginPercentage > 0 && Model.MarginUtilizedPosition > Model.MaxMarginPercentage)
+        {
+            if (InputAllowSmallerTradesWhenTradingLimitsAreExceeded && Model.MarginUtilizedPosition > 0)
+            {
+                //Margin scales linearly with volume; Math.Min preserves any reduction already applied by the risk fuse.
+                plannedTotalVolume = Math.Min(plannedTotalVolume,
+                    Model.TradeSize.Volume * Model.MaxMarginPercentage / Model.MarginUtilizedPosition);
+
+                if (plannedTotalVolume < Symbol.VolumeInUnitsMin)
+                {
+                    var minVolMsg = $"Cannot place trade: adjusted trade volume ({plannedTotalVolume:F2}) to fit within the maximum margin utilization, but it is below the broker's minimum allowed ({Symbol.VolumeInUnitsMin}). Trade not executed.";
+                    MessageBox.Show(minVolMsg, "Error", MessageBoxButton.OK);
+                    return;
+                }
+
+                plannedTotalVolume = Symbol.NormalizeVolumeInUnits(plannedTotalVolume, InputRoundingPositionSizeAndPotentialReward);
+
+                var result = MessageBox.Show(
+                    $"Take a smaller trade? Margin utilization for this position ({Model.MarginUtilizedPosition:F2}%) exceeds the maximum allowed ({Model.MaxMarginPercentage:F2}%). New position volume: {plannedTotalVolume:F2}.",
+                    "Confirmation",
+                    MessageBoxButton.OKCancel);
+
+                if (result != MessageBoxResult.OK)
+                    return;
+            }
+            else
+            {
+                var msg = $"Cannot place trade: margin utilization for this position ({Model.MarginUtilizedPosition:F2}%) exceeds the maximum allowed ({Model.MaxMarginPercentage:F2}%).";
                 Print(msg);
                 MessageBox.Show(msg, "Confirmation", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
@@ -78,7 +142,7 @@ public partial class PositionSizer
                 continue;
             }
 
-            var vol = Model.TradeSize.Volume * Model.TakeProfits.List[index].Distribution / 100.0;
+            var vol = plannedTotalVolume * Model.TakeProfits.List[index].Distribution / 100.0;
             var quantity = Symbol.VolumeInUnitsToQuantity(vol);
             var expiry = Model.OrderType != OrderType.Instant &&
                          Model.ExpirationSeconds != 0
@@ -89,14 +153,13 @@ public partial class PositionSizer
             
             Print($"Volume to trade: {vol:F2} | Quantity: {quantity:F2}");
                 
-            var takeProfit = Model.TakeProfits.List[index];
             var tp = Model.DoNotApplyTakeProfit
                 ? null
-                : (double?)takeProfit.Pips;
+                : (double?)Model.RealTakeProfitPips(index);
 
             var sl = Model.DoNotApplyStopLoss
                 ? null
-                : (double?)Model.StopLoss.Pips;
+                : (double?)Model.RealStopLossPips;
 
             var slPips = Model.StopLoss.Pips;
 
@@ -245,7 +308,7 @@ public partial class PositionSizer
             }
             else
             {
-                potentialRiskInCurrency = Symbol.AmountRisked(Model.TradeSize.Volume, Model.StopLoss.Pips);
+                potentialRiskInCurrency = Symbol.AmountRisked(Model.TradeSize.Volume, Model.RealStopLossPips);
             }
             
             var potentialRiskPct = potentialRiskInCurrency / Model.AccountSize.Value * 100;
@@ -361,7 +424,97 @@ public partial class PositionSizer
                     }
                 }   
             }
+
+            //Difference vs MT5: the Trading-tab max margin settings (total and per-symbol) must not
+            //restrict pending/stop-limit orders, because those reserve no margin until triggered.
+            //MT5 applies these limits to pending orders as well (acknowledged upstream bug).
+            if (InputShowAdditionalMarginSettings && Model.OrderType == OrderType.Instant)
+            {
+                if (Model.MaxMarginPctTotal > 0 && Model.MarginUtilizedFuture > Model.MaxMarginPctTotal)
+                {
+                    var msg =
+                        $"Cannot place trade: total margin utilization ({Model.MarginUtilizedFuture:F2}%) would exceed the maximum allowed ({Model.MaxMarginPctTotal:F2}%).";
+
+                    if (!InputAllowSmallerTradesWhenTradingLimitsAreExceeded || Model.MarginUtilizedPosition <= 0)
+                    {
+                        Print(msg);
+                        MessageBox.Show(msg, "Confirmation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    var newTotalVol = plannedTotalVolume *
+                                      (Model.MaxMarginPctTotal - Model.MarginUtilizedCurrent) /
+                                      Model.MarginUtilizedPosition;
+                    vol = newTotalVol * Model.TakeProfits.List[index].Distribution / 100.0;
+
+                    if (vol < Symbol.VolumeInUnitsMin)
+                    {
+                        var minVolMsg =
+                            $"Cannot place trade: adjusted trade volume ({vol:F2}) to fit within the maximum total margin utilization, but it is below the broker's minimum allowed ({Symbol.VolumeInUnitsMin}). Trade not executed.";
+                        MessageBox.Show(minVolMsg, "Error", MessageBoxButton.OK);
+                        return;
+                    }
+
+                    vol = Symbol.NormalizeVolumeInUnits(vol, InputRoundingPositionSizeAndPotentialReward);
+
+                    var result = MessageBox.Show(
+                        $"Take a smaller trade? Total margin utilization ({Model.MarginUtilizedFuture:F2}%) exceeds the maximum allowed ({Model.MaxMarginPctTotal:F2}%). New position volume: {newTotalVol:F2}.",
+                        "Confirmation",
+                        MessageBoxButton.OKCancel);
+
+                    if (result != MessageBoxResult.OK)
+                        return;
+
+                    quantity = Symbol.VolumeInUnitsToQuantity(vol);
+                }
+
+                if (Model.MaxMarginPctPerSymbol > 0)
+                {
+                    var marginUtilizedFutureSymbol = Model.MarginUtilizedCurrentSymbol + Model.MarginUtilizedPosition;
+
+                    if (marginUtilizedFutureSymbol > Model.MaxMarginPctPerSymbol)
+                    {
+                        var msg =
+                            $"Cannot place trade: per-symbol margin utilization ({marginUtilizedFutureSymbol:F2}%) would exceed the maximum allowed ({Model.MaxMarginPctPerSymbol:F2}%).";
+
+                        if (!InputAllowSmallerTradesWhenTradingLimitsAreExceeded || Model.MarginUtilizedPosition <= 0)
+                        {
+                            Print(msg);
+                            MessageBox.Show(msg, "Confirmation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            return;
+                        }
+
+                        var newTotalVol = plannedTotalVolume *
+                                          (Model.MaxMarginPctPerSymbol - Model.MarginUtilizedCurrentSymbol) /
+                                          Model.MarginUtilizedPosition;
+                        vol = newTotalVol * Model.TakeProfits.List[index].Distribution / 100.0;
+
+                        if (vol < Symbol.VolumeInUnitsMin)
+                        {
+                            var minVolMsg =
+                                $"Cannot place trade: adjusted trade volume ({vol:F2}) to fit within the maximum per-symbol margin utilization, but it is below the broker's minimum allowed ({Symbol.VolumeInUnitsMin}). Trade not executed.";
+                            MessageBox.Show(minVolMsg, "Error", MessageBoxButton.OK);
+                            return;
+                        }
+
+                        vol = Symbol.NormalizeVolumeInUnits(vol, InputRoundingPositionSizeAndPotentialReward);
+
+                        var result = MessageBox.Show(
+                            $"Take a smaller trade? Per-symbol margin utilization ({marginUtilizedFutureSymbol:F2}%) exceeds the maximum allowed ({Model.MaxMarginPctPerSymbol:F2}%). New position volume: {newTotalVol:F2}.",
+                            "Confirmation",
+                            MessageBoxButton.OKCancel);
+
+                        if (result != MessageBoxResult.OK)
+                            return;
+
+                        quantity = Symbol.VolumeInUnitsToQuantity(vol);
+                    }
+                }
+            }
             
+            //sl/tp above are already the effective (spread-adjusted) distances via Model.RealStopLossPips /
+            //RealTakeProfitPips, so the broker-side SL/TP match the panel's PS/risk/reward. ATR mode bakes spread
+            //into the displayed values, so Real* is a no-op there and there is no double-counting.
             if (InputSurpassBrokerMaxPositionSizeWithMultipleTrades && vol > Symbol.VolumeInUnitsMax)
             {
                 //step 1: Check how many times we can trade the max volume + the remainder
@@ -430,7 +583,7 @@ public partial class PositionSizer
                                 comment: comment,
                                 hasTrailingStop: false,
                                 stopLossTriggerMethod: StopTriggerMethod.Trade, //default 
-                                stopOrderTriggerMethod: StopTriggerMethod.Trade,
+                                stopOrderTriggerMethod: InputStopOrderTriggerMethod,
                                 callback: null);
                         }
                         else
@@ -445,7 +598,10 @@ public partial class PositionSizer
                                 takeProfit: tp,
                                 protectionType: ProtectionType.Relative,
                                 expiration: expiry,
-                                comment: comment);
+                                comment: comment,
+                                hasTrailingStop: false,
+                                stopLossTriggerMethod: StopTriggerMethod.Trade,
+                                stopOrderTriggerMethod: InputStopOrderTriggerMethod);
                         }
                     }
                     else
@@ -527,7 +683,11 @@ public partial class PositionSizer
                                 takeProfit: tp,
                                 protectionType: ProtectionType.Relative,
                                 expiration: expiry,
-                                comment: comment);
+                                comment: comment,
+                                hasTrailingStop: false,
+                                stopLossTriggerMethod: StopTriggerMethod.Trade,
+                                stopOrderTriggerMethod: InputStopOrderTriggerMethod,
+                                callback: null);
                         }
                         else
                         {
@@ -541,14 +701,17 @@ public partial class PositionSizer
                                 takeProfit: tp,
                                 protectionType: ProtectionType.Relative,
                                 expiration: expiry,
-                                comment: comment);
+                                comment: comment,
+                                hasTrailingStop: false,
+                                stopLossTriggerMethod: StopTriggerMethod.Trade,
+                                stopOrderTriggerMethod: InputStopOrderTriggerMethod);
                         }
                     }
                 }
 
                 break;
             case OrderType.StopLimit:
-                var stopLimitRangePips = Math.Round(Math.Abs(Model.StopLimitPrice - Model.EntryPrice), 1);
+                var stopLimitRangePips = Model.StopLimitPips();
                 
                 if (InputUseAsyncOrders)
                 {
@@ -563,7 +726,11 @@ public partial class PositionSizer
                         takeProfit: tp,
                         protectionType: ProtectionType.Relative,
                         expiration: expiry,
-                        comment: comment);
+                        comment: comment,
+                        hasTrailingStop: false,
+                        stopLossTriggerMethod: StopTriggerMethod.Trade,
+                        stopOrderTriggerMethod: InputStopOrderTriggerMethod,
+                        callback: null);
                 }
                 else
                 {
@@ -578,7 +745,10 @@ public partial class PositionSizer
                         takeProfit: tp,
                         protectionType: ProtectionType.Relative,
                         expiration: expiry,
-                        comment: comment);
+                        comment: comment,
+                        hasTrailingStop: false,
+                        stopLossTriggerMethod: StopTriggerMethod.Trade,
+                        stopOrderTriggerMethod: InputStopOrderTriggerMethod);
                 }
 
                 break;
@@ -595,7 +765,7 @@ public partial class PositionSizer
         {
             if (InputUseAsyncOrders)
             {
-                ExecuteMarketOrderAsync(Model.TradeType, SymbolName, volume, Model.Label, null, null, comment, r =>
+                ExecuteMarketOrderAsync(Model.TradeType, SymbolName, volume, Model.Label, (double?)null, (double?)null, comment, r =>
                 {
                     if (r.IsSuccessful)
                     {
@@ -629,7 +799,7 @@ public partial class PositionSizer
                 return;
             }
 
-            result = ExecuteMarketOrder(Model.TradeType, SymbolName, volume,Model.Label, null, null, comment);
+            result = ExecuteMarketOrder(Model.TradeType, SymbolName, volume, Model.Label, (double?)null, (double?)null, comment);
         }
         else
         {
@@ -638,7 +808,7 @@ public partial class PositionSizer
 
             if (InputUseAsyncOrders)
             {
-                ExecuteMarketRangeOrderAsync(Model.TradeType, SymbolName, volume, marketRangePips, basePrice, Model.Label, null, null, comment, r =>
+                ExecuteMarketRangeOrderAsync(Model.TradeType, SymbolName, volume, marketRangePips, basePrice, Model.Label, (double?)null, (double?)null, comment, r =>
                 {
                     if (r.IsSuccessful)
                     {
@@ -671,7 +841,7 @@ public partial class PositionSizer
                 return;
             }
 
-            result = ExecuteMarketRangeOrder(Model.TradeType, SymbolName, volume, marketRangePips, basePrice, Model.Label, null, null, comment);
+            result = ExecuteMarketRangeOrder(Model.TradeType, SymbolName, volume, marketRangePips, basePrice, Model.Label, (double?)null, (double?)null, comment);
         }
 
         if (result.IsSuccessful)

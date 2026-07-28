@@ -1,20 +1,12 @@
-// -------------------------------------------------------------------------------
-//   Calculates risk-based position size for your account.
-//   Allows trade execution based the calculation results.
-//   WARNING: No warranty. This EA is offered "as is". Use at your own risk.
-//   Note: Pressing Shift+T will open a trade.
-//   
-//   Version 1.22
-//   Copyright 2024-2026, EarnForex.com
-//   https://www.earnforex.com/ctrader-robots/cTrader-Position-Sizer/
-// -------------------------------------------------------------------------------
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using cAlgo.API;
+using cAlgo.API.Collections;
+using cAlgo.API.Indicators;
+using cAlgo.API.Internals;
 using cAlgo.Robots.RiskManagers;
 using cAlgo.Robots.Tools;
 using PositionSizer.XTextBoxControl.ByTypes;
@@ -50,7 +42,7 @@ public partial class PositionSizer : Robot,
     /// <summary>Fired from OnTick() so tick updates keep working after PC sleep/wake (Symbol.Tick does not).</summary>
     public event EventHandler<PositionSizerTickEventArgs> TickEvent;
     public IModel Model { get; set; }
-    public const string Version = "v1.22";
+    public const string Version = "v1.29";
     public CustomStyle CustomStyle { get; private set; }
     public BreakEven BreakEven { get; private set; }
     public TrailingStop TrailingStop { get; private set; }
@@ -104,6 +96,13 @@ public partial class PositionSizer : Robot,
 
     protected override void OnStop()
     {
+        // Detach from the static Logger event so this instance is no longer rooted after stop.
+        if (_logHandler != null)
+        {
+            Logger.LogEvent -= _logHandler;
+            _logHandler = null;
+        }
+
         OnStopEvent();
     }
 
@@ -180,7 +179,7 @@ public partial class PositionSizer : Robot,
         Model.SymbolName = SymbolName.Replace(" ", "");
         
         var canImplementModel = CanImplementModelOrPropertyChange(storageModel);
-        
+
         if (canImplementModel)
             storageModel.SetResources(this);
         
@@ -239,6 +238,11 @@ public partial class PositionSizer : Robot,
             canImplementModel && !_changedProperties.Contains("InputMaxRiskPercentage")
                 ? storageModel.MaxRiskPercentage
                 : InputMaxRiskPercentage;
+
+        Model.MaxMarginPercentage =
+            canImplementModel && !_changedProperties.Contains("InputMaxMarginPercentage")
+                ? storageModel.MaxMarginPercentage
+                : InputMaxMarginPercentage;
         
         Model.MaxLotsTotal = canImplementModel && !_changedProperties.Contains("InputMaxPositionSizeTotalForTradingTab")
             ? storageModel.MaxLotsTotal
@@ -297,6 +301,17 @@ public partial class PositionSizer : Robot,
         Model.MaxRiskPctPerSymbol = canImplementModel && !_changedProperties.Contains("InputMaxRiskPerSymbol")
             ? storageModel.MaxRiskPctPerSymbol
             : InputMaxRiskPerSymbol;
+
+        Model.MaxMarginPctTotal = canImplementModel && !_changedProperties.Contains("InputMaxMarginPctTotal")
+            ? storageModel.MaxMarginPctTotal
+            : InputMaxMarginPctTotal;
+
+        Model.MaxMarginPctPerSymbol = canImplementModel && !_changedProperties.Contains("InputMaxMarginPctPerSymbol")
+            ? storageModel.MaxMarginPctPerSymbol
+            : InputMaxMarginPctPerSymbol;
+
+        if (Model.MaxMarginPctTotal != 0 && Model.MaxMarginPctTotal < Model.MaxMarginPctPerSymbol)
+            Model.MaxMarginPctTotal = Model.MaxMarginPctPerSymbol;
         
         Model.DisableTradingWhenLinesAreHidden =
             canImplementModel && !_changedProperties.Contains("InputDisableTradingWhenLinesAreHidden")
@@ -335,7 +350,21 @@ public partial class PositionSizer : Robot,
             ? storageModel.CustomLeverage
             : InputCustomLeverage;
 
+        Model.MarginUtilizationBase = canImplementModel && !_changedProperties.Contains("InputDefaultMarginUtilizationBase")
+            ? storageModel.MarginUtilizationBase
+            : InputDefaultMarginUtilizationBase;
+
+        Model.MubStartingBalance = canImplementModel && !_changedProperties.Contains("InputDefaultMubStartingBalance")
+            ? storageModel.MubStartingBalance
+            : InputDefaultMubStartingBalance;
+
         SetAtrSettings(canImplementModel, storageModel);
+
+        // Trade size is set — apply MQL5 ProcessTPChange for locked TP, or refresh CommissionPipsExtra cache.
+        if (Model.TakeProfits.LockedOnStopLoss)
+            Model.UpdateTakeProfitPipsLockedOnStopLoss();
+        else
+            Model.RefreshCommissionPipsExtra();
 
         if (InputUseLastSavedSettings && RunningMode == RunningMode.RealTime)
         {
@@ -379,9 +408,10 @@ public partial class PositionSizer : Robot,
     {
         if (canImplementModel)
         {
-            Model.IsAtrModeActive = _changedProperties.Contains("InputShowAtrOptions")
-                ? InputShowAtrOptions
-                : storageModel.IsAtrModeActive;
+            Model.IsAtrModeActive = InputShowAtrOptions && (
+                _changedProperties.Contains("InputShowAtrOptions")
+                    ? InputShowAtrOptions
+                    : storageModel.IsAtrModeActive);
 
             Model.Period = _changedProperties.Contains("InputAtrPeriod") || (_changedProperties.Contains("InputShowAtrOptions") && InputShowAtrOptions)
                 ? InputAtrPeriod
@@ -421,11 +451,13 @@ public partial class PositionSizer : Robot,
                 ? new SerializableTimeFrame().FromTimeFrame(InputAtrTimeFrame)
                 : storageModel.AtrTimeFrame;
 
-            Model.StopLossSpreadAdjusted = _changedProperties.Contains("InputSpreadAdjustmentStopLoss") || (_changedProperties.Contains("InputShowAtrOptions") && InputShowAtrOptions)
+            //Spread Adjustment is independent of ATR now: honor the input only when it was explicitly changed,
+            //otherwise restore the saved state (no coupling to InputShowAtrOptions).
+            Model.StopLossSpreadAdjusted = _changedProperties.Contains("InputSpreadAdjustmentStopLoss")
                 ? InputSpreadAdjustmentStopLoss
                 : storageModel.StopLossSpreadAdjusted;
 
-            Model.TakeProfitSpreadAdjusted = _changedProperties.Contains("InputSpreadAdjustmentTakeProfit") || (_changedProperties.Contains("InputShowAtrOptions") && InputShowAtrOptions)
+            Model.TakeProfitSpreadAdjusted = _changedProperties.Contains("InputSpreadAdjustmentTakeProfit")
                 ? InputSpreadAdjustmentTakeProfit
                 : storageModel.TakeProfitSpreadAdjusted;
 
@@ -451,6 +483,11 @@ public partial class PositionSizer : Robot,
                 Model.SetAtrIndicator(Indicators.AverageTrueRange(bars, Model.Period, MovingAverageType.Simple));
                 Model.ChangeStopLossPips(Model.GetAtrPips());
                 Model.ChangeTakeProfitPips(0, Model.GetAtrPips());
+            }
+            else
+            {
+                Model.StopLossSpreadAdjusted = InputSpreadAdjustmentStopLoss;
+                Model.TakeProfitSpreadAdjusted = InputSpreadAdjustmentTakeProfit;
             }
         }
     }
@@ -671,11 +708,10 @@ public partial class PositionSizer : Robot,
             ? !InputDoNotApplyTakeProfit
             : storageModel.TakeProfits.Blocked;
         
-        Model.TakeProfits.CommissionPipsExtra = _changedProperties.Contains("InputUseCommissionToSetTpDistance")
-            ? InputUseCommissionToSetTpDistance
-                ? Symbol.Commission / 1_000_000
-                : 0
-            : storageModel.TakeProfits.CommissionPipsExtra;
+        // Placeholder: CommissionPipsExtra is a persistence/debug cache, not used for TP math.
+        // Clear stale saved value when the parameter changes; real value is set after trade size is known (see end of Initialize).
+        if (_changedProperties.Contains("InputUseCommissionToSetTpDistance"))
+            Model.TakeProfits.CommissionPipsExtra = 0;
         
         if (_changedProperties.Contains("InputDefaultTakeProfitPips"))
             Model.ChangeTakeProfitPips(0, InputDefaultTakeProfitPips);
@@ -706,16 +742,15 @@ public partial class PositionSizer : Robot,
                 ? TargetMode.Pips
                 : TargetMode.Price,
             Blocked = !InputDoNotApplyTakeProfit,
-            CommissionPipsExtra = InputUseCommissionToSetTpDistance
-                ? Symbol.Commission / 1_000_000
-                : 0,
+            // Placeholder until RefreshCommissionPipsExtra runs after trade size is set (not used for default TP pips).
+            CommissionPipsExtra = 0,
         };
         
         for (int i = 0; i < InputTakeProfitsNumber; i++)
         {
             Model.TakeProfits.List.Add(new TakeProfit
             {
-                Pips = InputDefaultTakeProfitPips == 0 ? 0 : InputDefaultTakeProfitPips * (i + 1) + Model.TakeProfits.CommissionPipsExtra,
+                Pips = InputDefaultTakeProfitPips == 0 ? 0 : InputDefaultTakeProfitPips * (i + 1),
                 Price = Model.TradeType == TradeType.Buy
                     ? InputDefaultTakeProfitPips == 0 ? 0 : Model.EntryPrice + InputDefaultTakeProfitPips * (i + 1) * Symbol.PipSize
                     : InputDefaultTakeProfitPips == 0 ? 0 : Model.EntryPrice - InputDefaultTakeProfitPips * (i + 1) * Symbol.PipSize,
@@ -732,7 +767,7 @@ public partial class PositionSizer : Robot,
             {
                 Model.TakeProfits.List.Add(new TakeProfit
                 {
-                    Pips = InputDefaultTakeProfitPips == 0 ? 0 : InputDefaultTakeProfitPips * (i + 1) + Model.TakeProfits.CommissionPipsExtra,
+                    Pips = InputDefaultTakeProfitPips == 0 ? 0 : InputDefaultTakeProfitPips * (i + 1),
                     Price = InputDefaultTakeProfitPips == 0 ? 0 : InputTradeType == TradeType.Buy
                         ? Model.EntryPrice + InputDefaultTakeProfitPips * (i + 1) * Symbol.PipSize
                         : Model.EntryPrice - InputDefaultTakeProfitPips * (i + 1) * Symbol.PipSize,
@@ -845,21 +880,52 @@ public partial class PositionSizer : Robot,
     {
         if (!canImplementModel)
         {
-            SetDefaultStopLimitPrice();
+            if (Model.OrderType == OrderType.StopLimit)
+                SetDefaultStopLimitPrice();
+            else
+                Model.StopLimitPrice = 0;
             return;
         }
 
         if (InputSymbolChangeAction == SymbolChangeAction.KeepPanelAsIs && _symbolHasChanged)
         {
-            SetDefaultStopLimitPrice();
+            if (Model.OrderType == OrderType.StopLimit)
+                SetDefaultStopLimitPrice();
+            else
+                Model.StopLimitPrice = 0;
             return;
         }
 
         Model.StopLimitPrice = storageModel.StopLimitPrice;
+
+        Model.StopLimitMode = _changedProperties.Contains("InputStopLimitDistanceInPips")
+            ? InputStopLimitDistanceInPips
+                ? TargetMode.Pips
+                : TargetMode.Price
+            : storageModel.StopLimitMode;
+
+        if (_changedProperties.Contains("InputDefaultStopLimitDistance"))
+        {
+            if (Model.OrderType == OrderType.StopLimit)
+                SetDefaultStopLimitPrice();
+            else
+                Model.StopLimitPrice = 0;
+        }
+
+        if (Model.StopLimitMode == TargetMode.Pips && Model.StopLimitPrice != 0 && Model.StopLimitPipsDistance == 0)
+            Model.SyncStopLimitPipsDistanceFromPrice();
     }
 
     private void SetDefaultStopLimitPrice()
     {
+        Model.StopLimitMode = InputStopLimitDistanceInPips ? TargetMode.Pips : TargetMode.Price;
+
+        if (InputDefaultStopLimitDistance > 0)
+        {
+            Model.ChangeStopLimitPips(InputDefaultStopLimitDistance);
+            return;
+        }
+
         Model.StopLimitPrice = Model.TradeType == TradeType.Buy
             ? Model.EntryPrice + Math.Min(5 * Symbol.PipSize, (Model.TakeProfits.List[0].Pips / 2.0) * Symbol.PipSize) 
             : Model.EntryPrice - Math.Min(5 * Symbol.PipSize, (Model.TakeProfits.List[0].Pips / 2.0) * Symbol.PipSize);
@@ -948,9 +1014,16 @@ public partial class PositionSizer : Robot,
         }
     }
 
+    private LogEventHandler _logHandler;
+
     private void SetLogger()
     {
-        Logger.LogEvent += message => Print(message);
+        // Keep a reference to the handler so it can be detached in OnStop. Subscribing an
+        // anonymous lambda to the STATIC Logger.LogEvent without ever removing it roots this
+        // entire Robot instance for the lifetime of the cTrader process, leaking one full
+        // instance graph per Stop/Start cycle.
+        _logHandler = message => Print(message);
+        Logger.LogEvent += _logHandler;
     }
 
     private void SetTrailingStopManager(bool canImplementModel, IModel storageModel)
@@ -1197,6 +1270,12 @@ public partial class PositionSizer : Robot,
         CustomStyle.LockedButtonStyle.Set(ControlProperty.BorderColor, Color.FromHex("FF888888"));
         CustomStyle.LockedButtonStyle.Set(ControlProperty.BorderThickness, 1);
         
+        //Spread Adjustment "SA" button when enabled: green that reads on the light panel
+        CustomStyle.SpreadAdjustOnButtonStyle.Set(ControlProperty.BackgroundColor, Color.FromHex("FF7CC47F"));
+        CustomStyle.SpreadAdjustOnButtonStyle.Set(ControlProperty.ForegroundColor, Color.Black);
+        CustomStyle.SpreadAdjustOnButtonStyle.Set(ControlProperty.BorderColor, Color.FromHex("FF4CAF50"));
+        CustomStyle.SpreadAdjustOnButtonStyle.Set(ControlProperty.BorderThickness, 1);
+        
         CustomStyle.TextBoxStyle.Set(ControlProperty.BackgroundColor, Color.White);
         CustomStyle.TextBoxStyle.Set(ControlProperty.ForegroundColor, Color.Black);
         CustomStyle.TextBoxStyle.Set(ControlProperty.BorderColor, Color.FromHex("FFB2C3CF"));
@@ -1226,6 +1305,12 @@ public partial class PositionSizer : Robot,
         CustomStyle.LockedButtonStyle.Set(ControlProperty.ForegroundColor, Color.Black);
         CustomStyle.LockedButtonStyle.Set(ControlProperty.BorderColor, Color.FromHex("FF888888"));
         CustomStyle.LockedButtonStyle.Set(ControlProperty.BorderThickness, 1);
+
+        //Spread Adjustment "SA" button when enabled: green that reads on the dark panel
+        CustomStyle.SpreadAdjustOnButtonStyle.Set(ControlProperty.BackgroundColor, Color.FromHex("FF5E9E64"));
+        CustomStyle.SpreadAdjustOnButtonStyle.Set(ControlProperty.ForegroundColor, Color.Black);
+        CustomStyle.SpreadAdjustOnButtonStyle.Set(ControlProperty.BorderColor, Color.FromHex("FF4C8452"));
+        CustomStyle.SpreadAdjustOnButtonStyle.Set(ControlProperty.BorderThickness, 1);
 
         // ReSharper disable once StringLiteralTypo
         CustomStyle.TextBoxStyle.Set(ControlProperty.BackgroundColor, Color.FromHex("FFAAAAAA"));

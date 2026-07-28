@@ -12,6 +12,7 @@ public interface IModelResources
     double InputFallbackLotSize { get; }
     bool InputCalculateUnadjustedPositionSize { get; }
     bool InputSurpassBrokerMaxPositionSizeWithMultipleTrades { get; }
+    bool InputUseCommissionToSetTpDistance { get; }
     //--
     Symbol Symbol { get; }
     Symbols Symbols { get; }
@@ -33,6 +34,7 @@ public partial class Model : IModel
     private double InputFallbackLotSize => _resources.InputFallbackLotSize;
     private bool InputCalculateUnadjustedPositionSize => _resources.InputCalculateUnadjustedPositionSize;
     private bool InputSurpassBrokerMaxPositionSizeWithMultipleTrades => _resources.InputSurpassBrokerMaxPositionSizeWithMultipleTrades;
+    private bool InputUseCommissionToSetTpDistance => _resources.InputUseCommissionToSetTpDistance;
     private IAccount Account => _resources.Account;
     private Positions Positions => _resources.Positions;
     private TimeFrame TimeFrame => _resources.TimeFrame;
@@ -74,6 +76,14 @@ public partial class Model : IModel
     /// For StopLimit Orders
     /// </summary>
     public double StopLimitPrice { get; set; }
+    /// <summary>
+    /// For StopLimit Orders: whether the stop price is edited/displayed as a pips distance to entry or as a price level
+    /// </summary>
+    public TargetMode StopLimitMode { get; set; }
+    /// <summary>
+    /// Intended pips distance to entry in Stop Limit pips mode. Preserved while other order types move entry on ticks.
+    /// </summary>
+    public double StopLimitPipsDistance { get; set; }
     public OrderType OrderType { get; set; }
     //--
     //dependents (Need to update if any of the other properties change)
@@ -242,52 +252,6 @@ public partial class Model : IModel
         }
     }
 
-    public double CommissionFromVolume()
-    {
-        //2 because it accounts for both the entry and exit
-        //1_000_000 because the commission is per million
-        return 2 * TradeSize.Volume * Symbol.Commission / 1_000_000;
-    }
-
-    public double StandardCommission()
-    {
-        //regardless of the commission type, we must return commission per 1 lot
-
-        var usdAsset = Assets.GetAsset("USD");
-        var baseAsset = Symbol.BaseAsset;
-        var accountAsset = Account.Asset;
-
-        if (Symbol.CommissionType == SymbolCommissionType.UsdPerMillionUsdVolume)
-        {
-            var lotSize = Symbol.LotSize == 0 ? InputFallbackLotSize : Symbol.LotSize;
-            var lotSizeOfBaseAssetInAccountCurrency = baseAsset.Convert(accountAsset, lotSize);
-            var commissionPerLotInAccountCurrency = Symbol.Commission / 1_000_000.0 * lotSizeOfBaseAssetInAccountCurrency;
-
-            return commissionPerLotInAccountCurrency;
-        }
-
-        if (Symbol.CommissionType == SymbolCommissionType.UsdPerOneLot)
-        {
-            return usdAsset.Convert(accountAsset, Symbol.Commission);
-        }
-
-        if (Symbol.CommissionType == SymbolCommissionType.QuoteCurrencyPerOneLot)
-        {
-            //example if it's EUR/JPY, then the quote currency is JPY
-            //the commission is in JPY per 1 lot
-            //we need to convert it to account currency
-
-            return usdAsset.Convert(Symbol.QuoteAsset, Symbol.Commission);
-        }
-
-        if (Symbol.CommissionType == SymbolCommissionType.PercentageOfTradingVolume)
-        {
-            return -1;
-        }
-        
-        throw new Exception("Unknown commission type");
-    }
-
     //Use stringBuilder, a new line for every property that has a getter and setter
     public override string ToString()
     {
@@ -361,8 +325,18 @@ public partial class Model : IModel
     {
         if (newPrice.Is(EntryPrice, Symbol.TickSize))
             return;
-        
+
+        //In Stop Limit pips mode, preserve the pips distance to entry: the stop price follows the entry.
+        //Both the old (current) and new entry are available here, so the intended distance is recovered from the old entry.
+        if (OrderType == OrderType.StopLimit && StopLimitMode == TargetMode.Pips)
+        {
+            var pips = StopLimitPipsDistance > 0 ? StopLimitPipsDistance : StopLimitPips();
+            var sign = TradeType == TradeType.Buy ? 1 : -1;
+            StopLimitPrice = newPrice + sign * pips * Symbol.PipSize;
+        }
+
         EntryPrice = newPrice;
+
         EntryPriceUpdated?.Invoke(this, new EntryPriceUpdatedEventArgs(EntryPrice, reason));
     }
 }

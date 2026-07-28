@@ -32,6 +32,11 @@ public class TakeProfits
             return distributionSum is 99 or 100;
         }
     }
+    /// <summary>
+    /// Cached commission offset in pips at 1× SL (TP − SL). Populated by <see cref="Model.RefreshCommissionPipsExtra"/>.
+    /// Not used for TP math — SL-based TP uses <see cref="Model.CalculateTakeProfitPipsWithCommission"/> (MQL5 ProcessTPChange).
+    /// Persisted for LocalStorage / debug output only.
+    /// </summary>
     public double CommissionPipsExtra { get; set; }
     public List<TakeProfit> List { get; set; } = new();
 

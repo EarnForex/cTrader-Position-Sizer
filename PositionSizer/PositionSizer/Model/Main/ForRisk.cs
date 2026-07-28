@@ -41,7 +41,7 @@ public partial class Model
         }
         else
         {
-            potentialRiskInCurrency = Symbol.AmountRisked(TradeSize.Volume, StopLoss.Pips);
+            potentialRiskInCurrency = Symbol.AmountRisked(TradeSize.Volume, RealStopLossPips);
         }
         
         PotentialPortfolio.RiskCurrency = updatedRiskCurrency + potentialRiskInCurrency;
@@ -55,17 +55,18 @@ public partial class Model
             if (TradeType == TradeType.Buy)
                 potentialRewardInCurrency = double.PositiveInfinity;
             else
-                foreach (var tp in TakeProfits.List)
+                for (var i = 0; i < TakeProfits.List.Count; i++)
                 {
+                    var tp = TakeProfits.List[i];
                     if (tp.Pips == 0)
                         potentialRewardInCurrency += Symbol.AmountRisked(TradeSize.Volume * tp.Distribution / 100.0, Symbol.Bid / Symbol.PipSize);
                     else
-                        potentialRewardInCurrency += Symbol.AmountRisked(TradeSize.Volume * tp.Distribution / 100.0, tp.Pips);
+                        potentialRewardInCurrency += Symbol.AmountRisked(TradeSize.Volume * tp.Distribution / 100.0, RealTakeProfitPips(i));
                 }
         }
         else
         {
-            potentialRewardInCurrency = TakeProfits.List.Sum(x => Symbol.AmountRisked(TradeSize.Volume * x.Distribution / 100.0, x.Pips));
+            potentialRewardInCurrency = TakeProfits.List.Select((x, i) => Symbol.AmountRisked(TradeSize.Volume * x.Distribution / 100.0, RealTakeProfitPips(i))).Sum();
         }
 
         PotentialPortfolio.RewardCurrency = updatedRewardCurrency + potentialRewardInCurrency;

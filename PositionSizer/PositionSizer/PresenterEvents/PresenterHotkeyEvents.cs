@@ -18,6 +18,9 @@ public partial class PositionSizer
     private void SetTakeProfitWhereMouseIs()
     {
         Print($"Setting TP to {_lastKnownMouseYPosition}");
+
+        if (Model.TakeProfits.LockedOnStopLoss)
+            Model.TakeProfits.LockedOnStopLoss = false;
         
         Model.UpdateTakeProfitPrice(0, _lastKnownMouseYPosition);
         
@@ -46,6 +49,15 @@ public partial class PositionSizer
     private void SwitchTakeProfitBetweenPipsAndLevel()
     {
         Model.TakeProfits.Mode = Model.TakeProfits.Mode == TargetMode.Pips
+            ? TargetMode.Price
+            : TargetMode.Pips;
+        
+        SetupWindowView.Update(Model);
+    }
+    
+    private void SwitchStopLimitBetweenPipsAndLevel()
+    {
+        Model.StopLimitMode = Model.StopLimitMode == TargetMode.Pips
             ? TargetMode.Price
             : TargetMode.Pips;
         

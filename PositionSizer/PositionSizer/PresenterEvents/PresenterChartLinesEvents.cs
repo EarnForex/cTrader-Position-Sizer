@@ -18,17 +18,12 @@ public partial class PositionSizer
     private void TargetLineMoved(object sender, TargetLineMovedEventArgs e)
     {
         if (e.TakeProfitId == 0 && Model.TakeProfits.LockedOnStopLoss)
-        {
-            SetupWindowView.Update(Model);
-            return;
-        }
+            Model.TakeProfits.LockedOnStopLoss = false;
         
         Model.UpdateTakeProfitPrice(e.TakeProfitId, e.Price);
 
-        if (Model is { IsAtrModeActive: true })
-        {
-            Model.TakeProfitMultiplier = Model.TakeProfits.List[e.TakeProfitId].Pips / Model.GetAtrPips();
-        }
+        if (ShouldSyncAtrTakeProfitMultiplierFromManualEdit())
+            SyncAtrTakeProfitMultiplierFromManualEdit(e.TakeProfitId);
 
         Model.UpdateTradeSizeValues(InputRoundingPositionSizeAndPotentialReward);
         ValidateOrTruncateLotSizeCappedOnMargin();
@@ -64,11 +59,8 @@ public partial class PositionSizer
         if (tradeTypeChanged)
             Model.UpdateTakeProfitsFromTradeTypeChange();
 
-        if (Model is { IsAtrModeActive: true })
-        {
-            Model.TakeProfitMultiplier = Model.TakeProfits.List[0].Pips / Model.GetAtrPips();
-            Model.StopLossMultiplier = Model.StopLoss.Pips / Model.GetAtrPips();
-        }
+        SyncAtrStopLossMultiplierFromManualEdit();
+        SyncAtrTakeProfitMultiplierFromManualEdit();
         
         Model.UpdateTradeSizeValues(InputRoundingPositionSizeAndPotentialReward);
         ValidateOrTruncateLotSizeCappedOnMargin();
@@ -79,6 +71,7 @@ public partial class PositionSizer
     private void StopPriceLineMoved(object sender, ChartLineMovedEventArgs e)
     {
         Model.StopLimitPrice = e.Price;
+        Model.SyncStopLimitPipsDistanceFromPrice();
         
         Model.UpdateTradeSizeValues(InputRoundingPositionSizeAndPotentialReward);
         ValidateOrTruncateLotSizeCappedOnMargin();

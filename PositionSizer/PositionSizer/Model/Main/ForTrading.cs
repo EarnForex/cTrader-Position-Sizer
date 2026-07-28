@@ -17,6 +17,9 @@ public partial class Model
     public double MaxLotsPerSymbol { get; set; }
     public double MaxRiskPctTotal { get; set; }
     public double MaxRiskPctPerSymbol { get; set; }
+    public double MaxMarginPctTotal { get; set; }
+    public double MaxMarginPctPerSymbol { get; set; }
+    public double MaxMarginPercentage { get; set; }
     public bool DisableTradingWhenLinesAreHidden { get; set; }
     public double MaxSlippagePips { get; set; }
     public double MaxSpreadPips { get; set; }

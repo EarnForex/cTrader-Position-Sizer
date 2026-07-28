@@ -335,7 +335,7 @@ public class ChartLinesView : IChartLinesViewResources
                 LastKnownYPrice = takeProfit.Price
             };
 
-            targetLine.TargetLineObj.IsInteractive = true;
+            targetLine.TargetLineObj.IsInteractive = IsTargetLineInteractive(model, index);
             targetLine.TargetLineObj.IsHidden = model.HideLines;
             
             //TargetAdditionalText shows TP $/% + R/R, example:
@@ -418,6 +418,9 @@ public class ChartLinesView : IChartLinesViewResources
     
     private string GetExtraStopLossText(IModel model)
     {
+        if (InputHideMoneyAndPipsValues)
+            return $"{model.TradeSize.RiskPercentageResult:F2}%";
+
         return $"{model.TradeSize.RiskPercentageResult:F2}% ({model.TradeSize.RiskInCurrencyResult:F2} {Account.Asset.Name})";
     }
 
@@ -427,6 +430,9 @@ public class ChartLinesView : IChartLinesViewResources
         //if there are multiple takeProfit-targetLines, it writes the lot sizes first (the lot sizes are split equally)
         if (model.TakeProfits.List.Count == 1)
         {
+            if (InputHideMoneyAndPipsValues)
+                return $"{model.TradeSize.RewardPercentageResult:F2}% {model.TradeSize.RewardRiskRatioResult:F2}R";
+
             return $"{model.TradeSize.RewardPercentageResult:F2}% ({model.TradeSize.RewardCurrencyResult:F2} {Account.Asset.Name}) {model.TradeSize.RewardRiskRatioResult:F2}R";
         }
 
@@ -458,6 +464,9 @@ public class ChartLinesView : IChartLinesViewResources
         // The R/R ratio for this specific TP
         var rr = rewardRiskRatio;
 
+        if (InputHideMoneyAndPipsValues)
+            return $"{lots:F2} Lots {tpPct:F2}% {rr:F2}R";
+
         return $"{lots:F2} Lots {tpPct:F2}% ({tpCurrency:F2} {Account.Asset.Name}) {rr:F2}R";
     }
     
@@ -474,7 +483,12 @@ public class ChartLinesView : IChartLinesViewResources
     private void UpdateTextOfFirstTakeProfitWithoutLots(IModel model)
     {
         if (InputShowAdditionalTpLabel)
-            TargetLines[0].TargetAdditionalTextObj.Text = $"{model.TradeSize.RewardPercentageResult:F2}% ({model.TradeSize.RewardCurrencyResult:F2} {Account.Asset.Name}) {model.TradeSize.RewardRiskRatioResult:F2}R";
+        {
+            if (InputHideMoneyAndPipsValues)
+                TargetLines[0].TargetAdditionalTextObj.Text = $"{model.TradeSize.RewardPercentageResult:F2}% {model.TradeSize.RewardRiskRatioResult:F2}R";
+            else
+                TargetLines[0].TargetAdditionalTextObj.Text = $"{model.TradeSize.RewardPercentageResult:F2}% ({model.TradeSize.RewardCurrencyResult:F2} {Account.Asset.Name}) {model.TradeSize.RewardRiskRatioResult:F2}R";
+        }
     }
 
     public void UpdateLines(IModel model)
@@ -543,7 +557,7 @@ public class ChartLinesView : IChartLinesViewResources
                         LastKnownYPrice = takeProfit.Price
                     };
 
-                    targetLine.TargetLineObj.IsInteractive = true;
+                    targetLine.TargetLineObj.IsInteractive = IsTargetLineInteractive(model, index);
                     targetLine.TargetLineObj.IsHidden = model.HideLines;
                 
                     if (InputShowAdditionalTpLabel)
@@ -577,6 +591,7 @@ public class ChartLinesView : IChartLinesViewResources
             
                     targetLine.LastKnownYPrice = takeProfit.Price;
                     targetLine.TargetLineObj.Y = takeProfit.Price;
+                    targetLine.TargetLineObj.IsInteractive = IsTargetLineInteractive(model, index);
 
                     if (targetLine.TargetTextObj != null)
                     {
@@ -811,10 +826,13 @@ public class ChartLinesView : IChartLinesViewResources
         {
             targetLine.TargetLineObj = Chart.DrawHorizontalLine(TargetLine.TargetLineTag + eTakeProfitId, takeProfit.Price, InputTakeProfitLineColor,
                 InputTakeProfitLineWidth, InputTakeProfitLineStyle);
-            targetLine.TargetLineObj.IsInteractive = true;
+            targetLine.TargetLineObj.IsInteractive = IsTargetLineInteractive(model, eTakeProfitId);
             targetLine.TargetLineObj.IsHidden = model.HideLines;
         }
     }
+
+    private static bool IsTargetLineInteractive(IModel model, int index) =>
+        !(model.TakeProfits.LockedOnStopLoss && index == 0);
 
     private void RemoveChartObject(ChartObject chartObject, string tag)
     {
@@ -866,6 +884,7 @@ public class ChartLinesView : IChartLinesViewResources
     public bool InputShowAdditionalStopLossLabel => _resources.InputShowAdditionalStopLossLabel;
     public bool InputShowAdditionalTpLabel => _resources.InputShowAdditionalTpLabel;
     public bool InputShowAdditionalEntryLabel => _resources.InputShowAdditionalEntryLabel;
+    public bool InputHideMoneyAndPipsValues => _resources.InputHideMoneyAndPipsValues;
     public Color InputStopLossLabelColor => _resources.InputStopLossLabelColor;
 
     public Color InputTpLabelColor => _resources.InputTpLabelColor;

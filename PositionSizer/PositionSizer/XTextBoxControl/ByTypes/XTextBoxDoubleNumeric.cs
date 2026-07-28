@@ -119,4 +119,7 @@ public class XTextBoxDoubleNumeric : XTextBoxNumeric<double>
 
         OnAfterClick?.Invoke(this, EventArgs.Empty);
     }
+
+    public void SetSpreadAdjustDisplayValue(double value) =>
+        SetSpreadAdjustDisplayText(value.ToString($"F{Digits}"));
 }

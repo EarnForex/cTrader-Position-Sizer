@@ -108,6 +108,33 @@ public partial class PositionSizer
         SetupWindowView.Update(Model);
     }
 
+    private void TradingViewOnMaxMarginPctTotalValueChanged(object sender, MaxMarginPctTotalValueChangedEventArgs e)
+    {
+        Model.MaxMarginPctTotal = e.MaxMarginPctTotal;
+
+        if (Model.MaxMarginPctTotal != 0 && Model.MaxMarginPctTotal < Model.MaxMarginPctPerSymbol)
+            Model.MaxMarginPctTotal = Model.MaxMarginPctPerSymbol;
+
+        SetupWindowView.Update(Model);
+    }
+
+    private void TradingViewOnMaxMarginPctPerSymbolValueChanged(object sender, MaxMarginPctPerSymbolValueChangedEventArgs e)
+    {
+        Model.MaxMarginPctPerSymbol = e.MaxMarginPctPerSymbol;
+
+        if (Model.MaxMarginPctTotal != 0 && Model.MaxMarginPctPerSymbol > Model.MaxMarginPctTotal)
+            Model.MaxMarginPctPerSymbol = Model.MaxMarginPctTotal;
+
+        SetupWindowView.Update(Model);
+    }
+
+    private void TradingViewOnMaxMarginPercentageValueChanged(object sender, MaxMarginPercentageValueChangedEventArgs e)
+    {
+        Model.MaxMarginPercentage = e.MaxMarginPercentage;
+
+        SetupWindowView.Update(Model);
+    }
+
     private void TradingViewOnDisableTradingWhenLinesHiddenCheckBoxChanged(object sender, DisableTradingWhenLinesHiddenEventArgs e)
     {
         Model.DisableTradingWhenLinesAreHidden = e.DisableTradingWhenLinesHidden;

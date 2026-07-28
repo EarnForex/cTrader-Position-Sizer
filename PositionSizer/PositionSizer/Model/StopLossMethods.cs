@@ -83,25 +83,17 @@ public partial class Model
         }
     }
 
-    public void UpdateStopLossSpreadAdjustment()
-    {
-        double tryNewStopLossPips;
-        if (StopLossSpreadAdjusted)
-            tryNewStopLossPips = StopLoss.Pips + Symbol.Spread / Symbol.PipSize;
-        else
-            tryNewStopLossPips = StopLoss.Pips - Symbol.Spread / Symbol.PipSize;
-
-        if (tryNewStopLossPips <= 0)
-            return;
-        
-        ChangeStopLossPips(tryNewStopLossPips);
-    }
-
-    public void TryAddStopLossSpreadAdjustment(bool stopLossSpreadAdjusted)
-    {
-        if (stopLossSpreadAdjusted) 
-            ChangeStopLossPips(StopLoss.Pips + Symbol.Spread / Symbol.PipSize);
-    }
+    /// <summary>
+    /// Effective ("real") stop-loss distance used in every position-size / risk / reward calculation and at order
+    /// placement. With Spread Adjustment (SL) on, this widens the displayed SL by the current spread so the math
+    /// reflects the SL that will actually be sent, while the panel keeps showing the base (user-entered or ATR-derived)
+    /// distance. Applies in both ATR and non-ATR modes. Returns the displayed pips unchanged when SA is off or when
+    /// there is no SL. Computed live from <see cref="Symbol"/>.Spread so it tracks spread changes.
+    /// </summary>
+    public double RealStopLossPips =>
+        StopLossSpreadAdjusted && StopLoss.Pips > 0
+            ? Math.Round(StopLoss.Pips + Symbol.Spread / Symbol.PipSize, 1)
+            : StopLoss.Pips;
 
     public void UpdateStopLossFromEntryLineMoved()
     {
@@ -118,12 +110,8 @@ public partial class Model
         if (StopLossMultiplier == 0)
             return;
 
-        var newStopLossPips = GetAtrPips() * StopLossMultiplier;
-        
-        if (StopLossSpreadAdjusted)
-            newStopLossPips += Symbol.Spread / Symbol.PipSize;
-
-        ChangeStopLossPips(newStopLossPips);
+        //Only sets the base ATR distance; Spread Adjustment is applied downstream via RealStopLossPips.
+        ChangeStopLossPips(GetAtrPips() * StopLossMultiplier);
     }
 
     public void ChangeStopLossPrice(double price)

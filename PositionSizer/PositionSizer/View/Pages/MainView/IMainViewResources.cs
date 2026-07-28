@@ -19,6 +19,7 @@ public interface IMainViewResources
     bool InputShowAtrOptions { get; }
     bool InputShowPipValue { get; }
     bool InputHideAccountSize { get; }
+    bool InputHideMoneyAndPipsValues { get; }
     bool InputDisableStopLimit { get; }
     IAccount Account { get; }
     Symbol Symbol { get; }

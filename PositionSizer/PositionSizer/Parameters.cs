@@ -35,6 +35,12 @@ public partial class PositionSizer
     /// </summary>
     [Parameter("Hide Account Size", DefaultValue = false, Group = "Compactness", Description = "Hide account size and its buttons on the Main View")]
     public bool InputHideAccountSize { get; set; }
+
+    /// <summary>
+    /// Hide Risk (currency) and Reward (currency) panel rows. SL/TP additional labels show % and R only.
+    /// </summary>
+    [Parameter("Hide Money & Pips Values", DefaultValue = false, Group = "Compactness", Description = "Hide Risk (currency) and Reward (currency) panel rows. SL/TP additional labels show % and R only (no currency).")]
+    public bool InputHideMoneyAndPipsValues { get; set; }
     
     [Parameter("Show Pip Value", DefaultValue = false, Group = "Compactness")]
     public bool InputShowPipValue { get; set; }
@@ -62,6 +68,9 @@ public partial class PositionSizer
 
     [Parameter("Hide Entry Line for Instant Orders", DefaultValue = false, Group = "Compactness")]
     public bool InputHideEntryLineForInstantOrders { get; set; }
+
+    [Parameter("Show Additional Margin Settings", DefaultValue = false, Group = "Compactness", Description = "Show additional margin settings/info on Margin tab")]
+    public bool InputShowAdditionalMarginSettings { get; set; }
     
     [Parameter("Additional Trade Buttons", DefaultValue = AdditionalTradeButtons.None, Group = "Compactness")]
     public AdditionalTradeButtons InputAdditionalTradeButtons { get; set; }
@@ -174,15 +183,15 @@ public partial class PositionSizer
     public TimeFrame InputAtrTimeFrame { get; set; }
 
     /// <summary>
-    /// Adjust SL by Spread value in ATR mode
+    /// Adjust SL by Spread value
     /// </summary>
-    [Parameter("Spread Adjustment SL", DefaultValue = false, Group = "Defaults", Description = "Adjust SL by Spread value in ATR mode")]
+    [Parameter("Spread Adjustment SL", DefaultValue = false, Group = "Defaults", Description = "Adjust SL by Spread value")]
     public bool InputSpreadAdjustmentStopLoss { get; set; }
 
     /// <summary>
-    /// Adjust TP by Spread value in ATR mode
+    /// Adjust TP by Spread value
     /// </summary>
-    [Parameter("Spread Adjustment TP", DefaultValue = false, Group = "Defaults", Description = "Adjust TP by Spread value in ATR mode")]
+    [Parameter("Spread Adjustment TP", DefaultValue = false, Group = "Defaults", Description = "Adjust TP by Spread value")]
     public bool InputSpreadAdjustmentTakeProfit { get; set; }
 
     [Parameter("Account Button", DefaultValue = AccountSizeMode.Balance, Group = "Defaults", Description = "Equity: Uses Equity automatically\nBalance: Uses a Custom Balance\nBalance - CPR: Account balance less the current portfolio risk as calculated on the Risk tab.")]
@@ -230,6 +239,12 @@ public partial class PositionSizer
     [Parameter("Custom Leverage", DefaultValue = 0.0, MinValue = 0, Group = "Defaults", Description = "Default Custom Leverage for Margin Tab")]
     public double InputCustomLeverage { get; set; }
 
+    [Parameter("Margin Utilization Base", DefaultValue = MarginUtilizationBase.Balance, Group = "Defaults", Description = "Margin utilization base for Margin tab")]
+    public MarginUtilizationBase InputDefaultMarginUtilizationBase { get; set; }
+
+    [Parameter("Starting Balance for Margin Utilization", DefaultValue = 0, MinValue = 0, Group = "Defaults", Description = "Starting balance for margin utilization base")]
+    public double InputDefaultMubStartingBalance { get; set; }
+
     [Parameter("Label", DefaultValue = "PSLabel", Group = "Defaults", Description = "Default Label for Trading Tab")]
     public string InputLabel { get; set; }
 
@@ -260,6 +275,9 @@ public partial class PositionSizer
     //input double DefaultMaxRiskPercentage = 0; // MaxRiskPercentage: Maximum risk % for Trading tab.
     [Parameter("Max Risk Percentage", DefaultValue = 0, MinValue = 0, Group = "Defaults", Description = "For Trading Tab")]
     public double InputMaxRiskPercentage { get; set; }
+
+    [Parameter("Max Margin Percentage", DefaultValue = 0, MinValue = 0, Group = "Defaults", Description = "For Trading Tab")]
+    public double InputMaxMarginPercentage { get; set; }
 
     [Parameter("Maximum Position Size Total", DefaultValue = 0, MinValue = 0, Group = "Defaults", Description = "For Trading Tab")]
     public double InputMaxPositionSizeTotalForTradingTab { get; set; }
@@ -321,11 +339,26 @@ public partial class PositionSizer
     [Parameter("Max Risk Per Symbol (%)", DefaultValue = 0, MinValue = 0, Group = "Defaults", Description = "For Trading Tab - 0 means unlimited")]
     public double InputMaxRiskPerSymbol { get; set; }
 
+    [Parameter("Max Margin Total (%)", DefaultValue = 0, MinValue = 0, Group = "Defaults", Description = "For Trading Tab - 0 means unlimited")]
+    public double InputMaxMarginPctTotal { get; set; }
+
+    [Parameter("Max Margin Per Symbol (%)", DefaultValue = 0, MinValue = 0, Group = "Defaults", Description = "For Trading Tab - 0 means unlimited")]
+    public double InputMaxMarginPctPerSymbol { get; set; }
+
     [Parameter("SL Distance (pips) Instead of a Level", DefaultValue = false, Group = "Defaults", Description = "Either pips or a price level")]
     public bool InputStopLossDistancePipsInsteadOfLevel { get; set; }
 
     [Parameter("TP Distance (pips) Instead of a Level", DefaultValue = false, Group = "Defaults", Description = "Either pips or a price level")]
     public bool InputTakeProfitDistancePipsInsteadOfLevel { get; set; }
+
+    [Parameter("Stop Limit Distance (pips) Instead of a Level", DefaultValue = false, Group = "Defaults", Description = "Either pips distance to entry or a price level")]
+    public bool InputStopLimitDistanceInPips { get; set; }
+
+    /// <summary>
+    /// If > 0, default Stop Limit distance to entry in pips. When 0, the automatic default distance is used.
+    /// </summary>
+    [Parameter("Default Stop Limit Distance (pips)", DefaultValue = 0, MinValue = 0, Group = "Defaults", Description = "If > 0, default Stop Limit distance to entry in pips. When 0, the automatic default is used.")]
+    public double InputDefaultStopLimitDistance { get; set; }
     
     #endregion
 
@@ -372,6 +405,12 @@ public partial class PositionSizer
 
     [Parameter("Switch TP Pips Level Hotkey", DefaultValue = "Shift + P", Group = "Keyboard Shortcuts", Description = "Switch TP between points and level")]
     public string InputHotkeySwitchTakeProfitPipsLevel { get; set; }
+
+    /// <summary>
+    /// Switch Stop Limit between pips distance and level
+    /// </summary>
+    [Parameter("Switch Stop Limit Pips Level Hotkey", DefaultValue = "Shift + L", Group = "Keyboard Shortcuts", Description = "Switch Stop Limit between pips distance and level")]
+    public string InputHotkeySwitchStopLimitPipsLevel { get; set; }
 
     #endregion
 
@@ -448,6 +487,10 @@ public partial class PositionSizer
     /// </summary>
     [Parameter("Disable Stop Limit", DefaultValue = false, Group = "Miscellaneous", Description = "If true, Stop Limit will be skipped")]
     public bool InputDisableStopLimit { get; set; }
+
+    [Parameter("Stop Order Trigger Method", DefaultValue = StopTriggerMethod.Trade, Group = "Miscellaneous",
+        Description = "Trigger side for pending Stop/Stop-Limit orders. Trade = Ask-side (buy) / Bid-side (sell); Opposite = reverse; Double* requires two consecutive ticks.")]
+    public StopTriggerMethod InputStopOrderTriggerMethod { get; set; }
 
     //Removed "Disable Trading Sounds" Because there are no custom sounds coming from the bot
 

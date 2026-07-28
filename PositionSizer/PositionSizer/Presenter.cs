@@ -5,6 +5,7 @@ using System.Text;
 using cAlgo.API;
 using cAlgo.API.Internals;
 using cAlgo.Robots.RiskManagers;
+using cAlgo.Robots.Tools;
 
 namespace cAlgo.Robots;
 
@@ -40,12 +41,14 @@ public partial class PositionSizer
         SetupWindowView.MainView.TakeProfitLevelRemoved += MainViewOnTakeProfitLevelRemoved;
         SetupWindowView.MainView.TakeProfitButtonClick += MainViewOnTakeProfitButtonClick;
         SetupWindowView.MainView.TpLockChanged += MainViewOnTpLockChanged;
+        SetupWindowView.MainView.TakeProfitLockedMultiplierChanged += MainViewOnTakeProfitLockedMultiplierChanged;
+        //spread adjustment (independent of ATR)
+        SetupWindowView.MainView.StopLossSpreadAdjustChanged += MainViewOnStopLossSpreadAdjustChanged;
+        SetupWindowView.MainView.TakeProfitSpreadAdjustChanged += MainViewOnTakeProfitSpreadAdjustChanged;
         //atr
         SetupWindowView.MainView.AtrPeriodChanged += MainViewOnAtrPeriodChanged;
         SetupWindowView.MainView.AtrStopLossMultiplierChanged += MainViewOnAtrStopLossMultiplierChanged;
-        SetupWindowView.MainView.AtrStopLossSaChanged += MainViewOnAtrStopLossSaChanged;
         SetupWindowView.MainView.AtrTakeProfitMultiplierChanged += MainViewOnAtrTakeProfitMultiplierChanged;
-        SetupWindowView.MainView.AtrTakeProfitSaChanged += MainViewOnAtrTakeProfitSaChanged;
         SetupWindowView.MainView.AtrTimeFrameChanged += MainViewOnAtrTimeFrameChanged;
         SetupWindowView.MainView.Click += _ => SetupWindowView.MainView.TrySaveTextBoxesContent();;
 
@@ -66,6 +69,8 @@ public partial class PositionSizer
         #region MarginViewSubscriptions
 
         SetupWindowView.MarginView.LeverageDisplayChanged += MarginViewOnLeverageDisplayChanged;
+        SetupWindowView.MarginView.MarginUtilizationBaseChanged += MarginViewOnMarginUtilizationBaseChanged;
+        SetupWindowView.MarginView.MubStartingBalanceChanged += MarginViewOnMubStartingBalanceChanged;
         SetupWindowView.MarginView.Click += _ => SetupWindowView.MarginView.TrySaveTextBoxesContent();
 
         #endregion
@@ -101,6 +106,7 @@ public partial class PositionSizer
         Chart.AddHotkey(() => SetupWindowView.HideOrShow(), InputMinimizeMaximizeHotkeyPanel);
         Chart.AddHotkey(SwitchStopLossBetweenPipsAndLevel, InputHotkeySwitchStopLossPipsLevel);
         Chart.AddHotkey(SwitchTakeProfitBetweenPipsAndLevel, InputHotkeySwitchTakeProfitPipsLevel);
+        Chart.AddHotkey(SwitchStopLimitBetweenPipsAndLevel, InputHotkeySwitchStopLimitPipsLevel);
 
         #endregion
         
@@ -129,7 +135,7 @@ public partial class PositionSizer
         
         SetupWindowView.ChartLinesView.DrawLines(Model);
         
-        if (Model is { IsAtrModeActive: true })
+        if (Model is { IsAtrModeActive: true } && InputShowAtrOptions)
             SetupWindowView.MainView.UpdateAtrValue(Model, Symbol);
         
         SetupWindowView.Update(Model);
@@ -295,6 +301,9 @@ public partial class PositionSizer
         SetupWindowView.TradingView.MaxVolumePerSymbolValueChanged += TradingViewOnMaxVolumePerSymbolValueChanged;
         SetupWindowView.TradingView.MaxRiskTotalValueChanged += TradingViewOnMaxRiskTotalValueChanged;
         SetupWindowView.TradingView.MaxRiskPerSymbolValueChanged += TradingViewOnMaxRiskPerSymbolValueChanged;
+        SetupWindowView.TradingView.MaxMarginPctTotalValueChanged += TradingViewOnMaxMarginPctTotalValueChanged;
+        SetupWindowView.TradingView.MaxMarginPctPerSymbolValueChanged += TradingViewOnMaxMarginPctPerSymbolValueChanged;
+        SetupWindowView.TradingView.MaxMarginPercentageValueChanged += TradingViewOnMaxMarginPercentageValueChanged;
         SetupWindowView.TradingView.DisableTradingWhenLinesHiddenCheckBoxChanged +=
             TradingViewOnDisableTradingWhenLinesHiddenCheckBoxChanged;
         SetupWindowView.TradingView.MaxSlippageValueChanged += TradingViewOnMaxSlippageValueChanged;
@@ -412,11 +421,22 @@ public partial class PositionSizer
             SetupWindowView.RiskView.Update(Model);
         }
 
-        if (Model is { IsAtrModeActive: true })
+        if (Model is { IsAtrModeActive: true } && InputShowAtrOptions)
             SetupWindowView.MainView.UpdateAtrValue(Model, Symbol);
 
         if (Model.OrderType != OrderType.Instant)
+        {
+            //Pending/stop-limit orders don't track the entry price on tick, but their effective (spread-adjusted)
+            //SL/TP still move with the spread, so keep PS/risk/reward in sync whenever Spread Adjustment is active
+            //(both ATR and non-ATR modes). Instant orders already recompute every tick via the entry-price update below.
+            if (Model.StopLossSpreadAdjusted || Model.TakeProfitSpreadAdjusted)
+            {
+                Model.UpdateTradeSizeValues(InputRoundingPositionSizeAndPotentialReward);
+                SetupWindowView.Update(Model);
+            }
+
             return;
+        }
 
         Model.UpdateEntryPrice(Model.TradeType == TradeType.Buy ? e.Ask : e.Bid, EntryPriceUpdateReason.TickUpdate);
     }
@@ -454,12 +474,20 @@ public partial class PositionSizer
 
     private void ChangeOrderTypeTo(OrderType orderType)
     {
+        var previousOrderType = Model.OrderType;
+
+        if (previousOrderType == OrderType.StopLimit && orderType != OrderType.StopLimit
+            && Model.StopLimitMode == TargetMode.Pips && Model.StopLimitPrice != 0)
+            Model.SyncStopLimitPipsDistanceFromPrice();
+
         Model.OrderType = orderType;
         
         if (Model.OrderType == OrderType.StopLimit)
         {
-            if (Model.StopLimitPrice == 0) 
+            if (Model.StopLimitPrice == 0)
                 SetDefaultStopLimitPrice();
+            else if (Model.StopLimitMode == TargetMode.Pips && Model.StopLimitPipsDistance > 0)
+                Model.ChangeStopLimitPips(Model.StopLimitPipsDistance);
 
             SetupWindowView.ChartLinesView.DrawStopPriceLinesAndText(Model);
         }

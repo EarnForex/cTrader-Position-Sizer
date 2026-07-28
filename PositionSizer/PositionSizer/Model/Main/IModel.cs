@@ -30,6 +30,16 @@ public interface IModel
     /// </summary>
     double StopLimitPrice { get; set; }
 
+    /// <summary>
+    /// For StopLimit Orders: whether the stop price is edited/displayed as a pips distance to entry or as a price level
+    /// </summary>
+    TargetMode StopLimitMode { get; set; }
+
+    /// <summary>
+    /// Intended pips distance to entry in Stop Limit pips mode. Preserved while other order types move entry on ticks.
+    /// </summary>
+    double StopLimitPipsDistance { get; set; }
+
     OrderType OrderType { get; set; }
     StopLoss StopLoss { get; set; }
     TradeSize TradeSize { get; set; }
@@ -41,6 +51,8 @@ public interface IModel
     double TakeProfitMultiplier { get; set; }
     bool StopLossSpreadAdjusted { get; set; }
     bool TakeProfitSpreadAdjusted { get; set; }
+    double RealStopLossPips { get; }
+    double RealTakeProfitPips(int index);
     SerializableTimeFrame AtrTimeFrame { get; set; }
     AtrCandle AtrCandle { get; set; }
     TakeProfits TakeProfits { get; set; }
@@ -56,6 +68,9 @@ public interface IModel
     double MaxLotsPerSymbol { get; set; }
     double MaxRiskPctTotal { get; set; }
     double MaxRiskPctPerSymbol { get; set; }
+    double MaxMarginPctTotal { get; set; }
+    double MaxMarginPctPerSymbol { get; set; }
+    double MaxMarginPercentage { get; set; }
     bool DisableTradingWhenLinesAreHidden { get; set; }
     double MaxSlippagePips { get; set; }
     double MaxSpreadPips { get; set; }
@@ -72,6 +87,13 @@ public interface IModel
     double FutureFreeMargin { get; set; }
     double MaxPositionSizeByMargin { get; set; }
     double CustomLeverage { get; set; }
+    MarginUtilizationBase MarginUtilizationBase { get; set; }
+    double MubStartingBalance { get; set; }
+    double MarginUtilizedCurrent { get; set; }
+    double MarginUtilizedPosition { get; set; }
+    double MarginUtilizedFuture { get; set; }
+    double MarginUtilizedCurrentSymbol { get; set; }
+    double MarginUtilizationBaseValue { get; set; }
     IncludeOrdersMode IncludeOrdersMode { get; set; }
     IncludeSymbolsMode IncludeSymbolsMode { get; set; }
     IncludeDirectionsMode IncludeDirectionsMode { get; set; }
@@ -82,6 +104,7 @@ public interface IModel
     void UpdateAccountSizeMode(AccountSizeMode newMode, double currentPortfolioRisk, RoundingMode roundingMode);
     void UpdateAccountSizeValue(double newValue, RoundingMode roundingMode);
     void UpdateAccountSizeValue(RoundingMode roundingMode);
+    void UpdateMarginUtilization();
     double CommissionFromVolume();
     double StandardCommission();
     string Trade(Symbol symbol);
@@ -106,18 +129,21 @@ public interface IModel
     string GetTimeFrameShortName();
     void UpdateStopLossFromTradeTypeChange();
     void UpdateStopLossFromEntryPriceChange();
-    void UpdateStopLossSpreadAdjustment();
-    void TryAddStopLossSpreadAdjustment(bool stopLossSpreadAdjusted);
     void UpdateStopLossFromEntryLineMoved();
     void UpdateStopLossFromAtr();
     void ChangeStopLossPrice(double price);
     void ChangeStopLossPips(double pips);
     void UpdateStopLossPriceFromPips();
+    double StopLimitPips();
+    void ChangeStopLimitPips(double pips);
+    void SyncStopLimitPipsDistanceFromPrice();
     void UpdateTakeProfitsFromEntryPriceChanged();
     void UpdateTakeProfitsFromTradeTypeChange();
-    void UpdateTakeProfitsFromSpreadAdjustment();
     void UpdateTakeProfitPipsLockedOnStopLoss();
     void UpdateTakeProfitPipsLockedOnStopLoss(int id);
+    void RefreshCommissionPipsExtra();
+    void SetTakeProfitLockedMultiplier(double value);
+    void SyncAtrTakeProfitMultiplierFromLocked();
     void ChangeTakeProfitPips(int id, double pips);
     void UpdateTakeProfitFromAtr();
     void UpdateTakeProfitPrice(int id, double price);

@@ -29,6 +29,7 @@ public interface IChartLinesViewResources
     bool InputShowAdditionalStopLossLabel { get; }
     bool InputShowAdditionalTpLabel { get; }
     bool InputShowAdditionalEntryLabel { get; }
+    bool InputHideMoneyAndPipsValues { get; }
     
     Color InputStopLossLabelColor { get; }
     Color InputTpLabelColor { get; }

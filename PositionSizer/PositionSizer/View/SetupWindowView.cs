@@ -55,6 +55,7 @@ public interface ISetupWindowResources
     int InputPanelPositionX { get;  }
     int InputPanelPositionY { get; }
     bool InputHideAccountSize { get; }
+    bool InputHideMoneyAndPipsValues { get; }
     LineStyle InputStopPriceLineStyle { get; }
     int InputStopPriceLineWidth { get; }
     Color InputStopPriceLineColor { get; }
@@ -63,6 +64,7 @@ public interface ISetupWindowResources
     bool InputShowTradingFusesOnTradingTab { get; }
     AdditionalTradeButtons InputAdditionalTradeButtons { get; }
     bool InputShowCheckBoxesOnTradingTab { get; }
+    bool InputShowAdditionalMarginSettings { get; }
     IAssetConverter AssetConverter { get; }
     bool InputRestoreWindowLocationOnChartSizeChange { get; }
     bool InputAskForConfirmationBeforeClosingThePanel { get; }
@@ -458,7 +460,7 @@ public sealed class SetupWindowView : Grid,
         if (Chart.Height.IsNot(_lastKnownChartHeight))
         {
             if (Chart.Height < _lastKnownChartHeight)
-                if (Chart.Height < Margin.Top + 350)
+                if (Chart.Height < Margin.Top + (InputShowAdditionalMarginSettings ? 470 : 350))
                     top = 10;
 
             _lastKnownChartHeight = Chart.Height;
@@ -645,6 +647,7 @@ public sealed class SetupWindowView : Grid,
     public int IndexForLabelReference => _resources.IndexForLabelReference;
     public bool InputCalculateUnadjustedPositionSize => _resources.InputCalculateUnadjustedPositionSize;
     public bool InputHideAccountSize => _resources.InputHideAccountSize;
+    public bool InputHideMoneyAndPipsValues => _resources.InputHideMoneyAndPipsValues;
     public bool InputShowAdditionalStopLossLabel => _resources.InputShowAdditionalStopLossLabel;
     public bool InputShowAdditionalTpLabel => _resources.InputShowAdditionalTpLabel;
     public bool InputShowAdditionalEntryLabel => _resources.InputShowAdditionalEntryLabel;
@@ -653,6 +656,7 @@ public sealed class SetupWindowView : Grid,
     public bool InputShowTradingFusesOnTradingTab => _resources.InputShowTradingFusesOnTradingTab;
     public AdditionalTradeButtons InputAdditionalTradeButtons => _resources.InputAdditionalTradeButtons;
     public bool InputShowCheckBoxesOnTradingTab => _resources.InputShowCheckBoxesOnTradingTab;
+    public bool InputShowAdditionalMarginSettings => _resources.InputShowAdditionalMarginSettings;
     public IAssetConverter AssetConverter => _resources.AssetConverter;
     public bool InputRestoreWindowLocationOnChartSizeChange => _resources.InputRestoreWindowLocationOnChartSizeChange;
 

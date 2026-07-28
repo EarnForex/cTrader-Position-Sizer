@@ -35,16 +35,12 @@ public partial class PositionSizer
         else
             Model.ChangeStopLossPips(e.NewValue);
 
-        if (InputShowAtrOptions)
-        {
-            //update the ATR SL multiplier
-            Model.StopLossMultiplier = Model.StopLoss.Pips / Model.GetAtrPips();
-            Model.StopLossSpreadAdjusted = false;
-        }
+        SyncAtrStopLossMultiplierFromManualEdit();
 
         if (Model.TakeProfits.LockedOnStopLoss)
         {
             Model.UpdateTakeProfitPipsLockedOnStopLoss();
+            SyncAtrTakeProfitMultiplierIfNeeded();
         }
         
         Model.UpdateTradeSizeValues(InputRoundingPositionSizeAndPotentialReward);
@@ -61,34 +57,19 @@ public partial class PositionSizer
         Print($"Setting TP to {e.TakeProfitValue:F5} from id {e.TakeProfitId}");
 
         if (Model.TakeProfits.LockedOnStopLoss && e.TakeProfitId == 0)
-        {
-            Print($"TP is Locked on SL - Updating TP Accordingly");
-            Model.UpdateTakeProfitPipsLockedOnStopLoss();
-        }
-        else
-        {
-            if (Model.TakeProfits.Mode == TargetMode.Pips)
-                Model.ChangeTakeProfitPips(e.TakeProfitId, e.TakeProfitValue);
-            else
-                Model.UpdateTakeProfitPrice(e.TakeProfitId, e.TakeProfitValue);   
-        }
+            Model.TakeProfits.LockedOnStopLoss = false;
 
-        if (InputShowAtrOptions)
+        if (Model.TakeProfits.Mode == TargetMode.Pips)
+            Model.ChangeTakeProfitPips(e.TakeProfitId, e.TakeProfitValue);
+        else
+            Model.UpdateTakeProfitPrice(e.TakeProfitId, e.TakeProfitValue);
+
+        if (InputShowAtrOptions && e.TakeProfitId == 0)
         {
-            if (e.TakeProfitId == 0)
-            {
-                if (e.TakeProfitValue == 0)
-                {
-                    Model.TakeProfitMultiplier = 0;
-                    Model.TakeProfitSpreadAdjusted = false;
-                }
-                else
-                {
-                    //update the ATR TP multiplier
-                    Model.TakeProfitMultiplier = Model.TakeProfits.List[0].Pips / Model.GetAtrPips();
-                    Model.TakeProfitSpreadAdjusted = false;                
-                }   
-            }
+            if (e.TakeProfitValue == 0)
+                Model.TakeProfitMultiplier = 0;
+            else
+                SyncAtrTakeProfitMultiplierFromManualEdit();
         }
         
         Model.UpdateTradeSizeValues(InputRoundingPositionSizeAndPotentialReward);
@@ -247,11 +228,18 @@ public partial class PositionSizer
         if (Model.TakeProfits.LockedOnStopLoss)
         {
             Model.UpdateTakeProfitPipsLockedOnStopLoss();
+            SyncAtrTakeProfitMultiplierIfNeeded();
             Model.UpdateTradeSizeValues(InputRoundingPositionSizeAndPotentialReward);
             
             ValidateOrTruncateLotSizeCappedOnMargin();
         }
         
+        SetupWindowView.Update(Model);
+    }
+
+    private void MainViewOnTakeProfitLockedMultiplierChanged(object sender, TakeProfitLockedMultiplierChangedEventArgs e)
+    {
+        Model.SetTakeProfitLockedMultiplier(e.LockedMultiplier);
         SetupWindowView.Update(Model);
     }
 
@@ -266,6 +254,7 @@ public partial class PositionSizer
             return;
         
         Model.UpdateTakeProfitPipsLockedOnStopLoss(id: 0);
+        SyncAtrTakeProfitMultiplierIfNeeded();
         Model.UpdateTradeSizeValues(InputRoundingPositionSizeAndPotentialReward);
         
         ValidateOrTruncateLotSizeCappedOnMargin();
@@ -280,7 +269,6 @@ public partial class PositionSizer
         Model.SetAtrIndicator(Indicators.AverageTrueRange(period, e.Period, MovingAverageType.Simple));  
         
         Model.ChangeStopLossPips(Model.GetAtrPips() * Model.StopLossMultiplier);
-        Model.TryAddStopLossSpreadAdjustment(Model.StopLossSpreadAdjusted);
         Model.UpdateTakeProfitFromAtr();
         
         ValidateOrTruncateLotSizeCappedOnMargin();
@@ -295,21 +283,27 @@ public partial class PositionSizer
         Model.UpdateStopLossFromAtr();
         
         if (Model.TakeProfits.LockedOnStopLoss)
+        {
             Model.UpdateTakeProfitPipsLockedOnStopLoss();
+            SyncAtrTakeProfitMultiplierIfNeeded();
+        }
         
         ValidateOrTruncateLotSizeCappedOnMargin();
         
         SetupWindowView.Update(Model);
     }
 
-    private void MainViewOnAtrStopLossSaChanged(object sender, AtrStopLossSaChangedEventArgs e)
+    private void MainViewOnStopLossSpreadAdjustChanged(object sender, StopLossSpreadAdjustChangedEventArgs e)
     {
-        Model.StopLossSpreadAdjusted = e.IsChecked;
-        
-        Model.UpdateStopLossSpreadAdjustment();
-        
+        //Independent of ATR: only toggle the flag; the effective SL is derived live via Model.RealStopLossPips.
+        Model.StopLossSpreadAdjusted = e.IsEnabled;
+
+        Model.UpdateTradeSizeValues(InputRoundingPositionSizeAndPotentialReward);
+
         ValidateOrTruncateLotSizeCappedOnMargin();
-        
+
+        Model.UpdateMarginValues(AssetConverter, InputRoundingPositionSizeAndPotentialReward);
+
         SetupWindowView.Update(Model);
     }
 
@@ -322,12 +316,17 @@ public partial class PositionSizer
         SetupWindowView.Update(Model);
     }
 
-    private void MainViewOnAtrTakeProfitSaChanged(object sender, AtrTakeProfitSaChangedEventArgs e)
+    private void MainViewOnTakeProfitSpreadAdjustChanged(object sender, TakeProfitSpreadAdjustChangedEventArgs e)
     {
-        Model.TakeProfitSpreadAdjusted = e.IsChecked;
-        
-        Model.UpdateTakeProfitsFromSpreadAdjustment();
-        
+        //Independent of ATR: only toggle the flag; the effective TP is derived live via Model.RealTakeProfitPips.
+        Model.TakeProfitSpreadAdjusted = e.IsEnabled;
+
+        Model.UpdateTradeSizeValues(InputRoundingPositionSizeAndPotentialReward);
+
+        ValidateOrTruncateLotSizeCappedOnMargin();
+
+        Model.UpdateMarginValues(AssetConverter, InputRoundingPositionSizeAndPotentialReward);
+
         SetupWindowView.Update(Model);
     }
 
@@ -349,7 +348,13 @@ public partial class PositionSizer
 
     private void MainViewOnStopLimitPriceChanged(object sender, StopLimitPriceChangedEventArgs e)
     {
-        Model.StopLimitPrice = e.StopLimitPrice;
+        if (Model.StopLimitMode == TargetMode.Pips)
+            Model.ChangeStopLimitPips(e.StopLimitPrice);
+        else
+        {
+            Model.StopLimitPrice = e.StopLimitPrice;
+            Model.StopLimitPipsDistance = 0;
+        }
         
         ValidateOrTruncateLotSizeCappedOnMargin();
         
@@ -359,14 +364,49 @@ public partial class PositionSizer
     private void MainViewOnStopLossDefaultClick(object sender, EventArgs e)
     {
         Model.ChangeStopLossPips(Model.StopLoss.InitialDefaultValuePips);
-        Model.TryAddStopLossSpreadAdjustment(Model.StopLossSpreadAdjusted);
-        
+        //Spread Adjustment is applied downstream via Model.RealStopLossPips, so the displayed SL stays the base value.
+
         if (Model.TakeProfits.LockedOnStopLoss)
+        {
             Model.UpdateTakeProfitPipsLockedOnStopLoss();
+            SyncAtrTakeProfitMultiplierIfNeeded();
+        }
         
         ValidateOrTruncateLotSizeCappedOnMargin();
         
         SetupWindowView.Update(Model);
+    }
+
+    private void SyncAtrTakeProfitMultiplierIfNeeded()
+    {
+        if (InputShowAtrOptions)
+            Model.SyncAtrTakeProfitMultiplierFromLocked();
+    }
+
+    private bool ShouldSyncAtrStopLossMultiplierFromManualEdit() =>
+        InputShowAtrOptions
+        && Model.StopLossMultiplier != 0
+        && Model.StopLoss.Mode != TargetMode.Price;
+
+    private bool ShouldSyncAtrTakeProfitMultiplierFromManualEdit() =>
+        InputShowAtrOptions
+        && Model.TakeProfitMultiplier != 0
+        && Model.TakeProfits.Mode != TargetMode.Price;
+
+    private void SyncAtrStopLossMultiplierFromManualEdit()
+    {
+        if (!ShouldSyncAtrStopLossMultiplierFromManualEdit())
+            return;
+
+        Model.StopLossMultiplier = Model.StopLoss.Pips / Model.GetAtrPips();
+    }
+
+    private void SyncAtrTakeProfitMultiplierFromManualEdit(int takeProfitId = 0)
+    {
+        if (!ShouldSyncAtrTakeProfitMultiplierFromManualEdit())
+            return;
+
+        Model.TakeProfitMultiplier = Model.TakeProfits.List[takeProfitId].Pips / Model.GetAtrPips();
     }
     
     private void ValidateOrTruncateLotSizeCappedOnMargin()
